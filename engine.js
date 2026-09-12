@@ -367,12 +367,15 @@
     if (!p) { if (S.players.length >= MAX_PLAYERS) return null; p = { id: uid(S, 'p'), name, here: true }; S.players.push(p); } else p.here = true;
     return p;
   }
-  function addLate(S, name) {
-    const g = S.game; const p = addPlayer(S, name); if (!p) return null;
-    if (g.field.includes(p.id) || g.bench.includes(p.id)) return p;
-    snapshot(S); detach(g, p.id); g.bench.push(p.id); if (g.played[p.id] == null) g.played[p.id] = (g.playedBefore && g.playedBefore[p.id]) || 0; g.offSince[p.id] = g.total;
-    return p;
+  // A kid on the team shows up: mark them here and, mid-game, put them on the bench. Their rules were never removed, so they apply again.
+  function arrive(S, id) {
+    const p = S.players.find((x) => x.id === id); if (!p) return false;
+    p.here = true; const g = S.game; if (!g || g.ended) return true;
+    if (g.field.includes(id) || g.bench.includes(id)) return true;
+    snapshot(S); detach(g, id); g.bench.push(id); if (g.played[id] == null) g.played[id] = (g.playedBefore && g.playedBefore[id]) || 0; g.offSince[id] = g.total;
+    return true;
   }
+  function addLate(S, name) { const p = addPlayer(S, name); if (!p) return null; arrive(S, p.id); return p; }
   function removePlayer(S, id) {
     const g = S.game;
     if (g && !g.ended && activeIds(S).has(id)) return { ok: false, msg: nameOf(S, id) + ' is in the game. End the game first, or mark them Done for today.' };
@@ -449,6 +452,12 @@
     data.players.forEach((n) => addPlayer(tmp, n));
     if (tmp.players.length === 0) return false;
     rules.forEach((r) => { const ids = r.names.map((n) => findByName(tmp, n)).filter(Boolean).map((p) => p.id); addRule(tmp, r.type, ids, r.min); });
+    if (S.carry) { // keep the carried lineup: the ids are rebuilt, so translate by name
+      const byName = (id) => { const p = findByName(tmp, nameOf(S, id)); return p ? p.id : null; };
+      const map = (m) => { const o = {}; Object.keys(m || {}).forEach((id) => { const n = byName(id); if (n) o[n] = m[id]; }); return o; };
+      const list = (l) => (l || []).map(byName).filter(Boolean);
+      S.carry = Object.assign({}, S.carry, { played: map(S.carry.played), rest: map(S.carry.rest), stint: map(S.carry.stint), field: list(S.carry.field), waiting: list(S.carry.waiting) });
+    }
     S.players = tmp.players; S.rules = tmp.rules; S.seq = tmp.seq;
     S.settings = cleanSettings(Object.assign({}, S.settings, data.settings && typeof data.settings === 'object' ? data.settings : {}));
     S.game = null; S.screen = 'setup';
@@ -473,6 +482,6 @@
 
   return { STATE_VERSION, LIMITS, MAX_PLAYERS, MAX_RULES, defaults, migrate, findByName, nameOf, activeIds, violations, played, stint, rest, isFresh, freshMatters,
     pinnedByRule, plan, rotationPlan, planSpeech, undo, startGame, execute, dismissPending, subNow, toggleLock, outEarly, returnNow, toBench,
-    doneToday, checkLater, manualSwap, movePlayer, usableCarry, carryPreview, addPlayer, addLate, removePlayer, addRule, togglePlay, nextPeriod, endGame, newGame, tick, markSpoken,
+    doneToday, checkLater, manualSwap, movePlayer, usableCarry, carryPreview, addPlayer, arrive, addLate, removePlayer, addRule, togglePlay, nextPeriod, endGame, newGame, tick, markSpoken,
     importRoster, encodeRoster, decodeRoster };
 });

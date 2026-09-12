@@ -28,6 +28,8 @@ await shot('01-setup-light', true);
 // Toggling attendance and settings must not duplicate the footer button
 await (await p.$$('#attendList .btn.here'))[0].click(); await (await p.$$('#segSubs .btn'))[0].click(); await (await p.$$('#attendList .btn.here'))[0].click();
 check((await p.$$('#footInner .btn')).length === 1, 'one Start button after several setup taps');
+check((await p.$$('#attendList button[title^="Remove"]')).length === 0, 'Remove hidden until Edit team');
+await p.click('#editRoster'); await p.waitForTimeout(150); check((await p.$$('#attendList button[title^="Remove"]')).length === 11, 'Edit team shows Remove'); await p.click('#editRoster');
 check(await p.$eval('#attendList .btn.here[aria-pressed="true"]', (b) => { const c = getComputedStyle(b); return c.color !== c.backgroundColor; }), 'present kid name is readable');
 
 // Load the coach roster through a roster link and shorten the clock for the test.
@@ -70,6 +72,15 @@ await p.click('#goBtn'); await p.waitForTimeout(250); s = await st(); check(!s.g
 check(await p.$eval('#voiceSel', (e) => e.options.length >= 1), 'voice picker present');
 check(s.game.subT > 50 && s.game.subT <= 60, 'swap timer reset after confirm (' + s.game.subT + ')');
 check(s.game.history.length >= 1, 'undo history recorded');
+
+// A kid on the team who was marked not here arrives mid-game: one tap, rules intact
+await p.evaluate(() => { const S = window.__goinfor.state; const E = window.__goinfor.Engine; const g = S.game; const late = g.bench[g.bench.length - 1]; g.bench = g.bench.filter((id) => id !== late); S.players.find((x) => x.id === late).here = false; window.__goinfor.tick(); });
+await p.evaluate(() => window.dispatchEvent(new Event('visibilitychange'))); await p.waitForTimeout(300);
+const rulesBefore = (await st()).rules.length;
+check(await p.$eval('#notHereWrap', (e) => !e.hidden && e.querySelectorAll('button').length === 1), 'not-here-yet list shows the absent kid');
+await p.click('#notHere button'); await p.waitForTimeout(300); s = await st();
+check(s.game.bench.length === 5 && s.players.every((x) => x.here) && s.rules.length === rulesBefore, 'one tap puts the late kid on the bench with the rules intact');
+check(await p.$eval('#notHereWrap', (e) => e.hidden), 'not-here-yet list hides when everyone is here');
 
 // Left early -> fill -> check back -> return
 const leftName = (await names('#fieldList')).find((n) => n !== 'Craig');

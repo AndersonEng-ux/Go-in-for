@@ -423,3 +423,29 @@ test('carry on: a late kid who never played today starts first, and a garbage ca
   const S3 = E.migrate({ players: [{ id: 'p1', name: 'A' }], carry: { at: Date.now() + 1e12, games: Infinity, played: {} } });
   assert.ok(S3.carry.at <= Date.now()); assert.equal(S3.carry.games, 99);
 });
+
+test('attendance: a kid marked not here keeps their rules, and they apply again when they arrive', () => {
+  const t = team(COACH.names, COACH.rules);
+  const lydon = t.id('Lydon'); t.S.players.find((p) => p.id === lydon).here = false;
+  const rulesBefore = JSON.stringify(t.S.rules);
+  E.startGame(t.S, NOW); const g = t.S.game;
+  assert.equal(JSON.stringify(t.S.rules), rulesBefore, 'rules untouched while absent');
+  assert.ok(!E.activeIds(t.S).has(lydon));
+  assert.equal(E.arrive(t.S, lydon), true);
+  assert.ok(g.bench.includes(lydon) && t.S.players.find((p) => p.id === lydon).here);
+  assert.equal(E.played(t.S, lydon), 0);
+  const knox = t.id('Knox'); g.field = g.field.filter((id) => id !== knox).concat(knox).slice(-6); if (!g.field.includes(knox)) g.field[0] = knox;
+  assert.ok(E.violations(t.S, g.field.concat(lydon), []).some((v) => /Knox and Lydon/.test(v)), 'apart rule is live again');
+  assert.equal(E.arrive(t.S, lydon), true, 'arriving twice is harmless'); assert.equal(g.bench.filter((id) => id === lydon).length, 1);
+  assert.equal(E.arrive(t.S, 'nope'), false);
+  assert.equal(E.addLate(t.S, 'lydon').id, lydon, 'typing the name finds the same kid');
+});
+
+test('attendance: reloading the roster keeps the carry-over by name', () => {
+  const t = team(COACH.names, COACH.rules);
+  E.startGame(t.S, NOW); E.tick(t.S, NOW + 100 * 1000); E.endGame(t.S, NOW + 100 * 1000); E.newGame(t.S, true);
+  const waiting = t.S.carry.waiting.map(t.name);
+  E.importRoster(t.S, { players: COACH.names, rules: COACH.rules });
+  assert.deepEqual(t.S.carry.waiting.map((id) => E.nameOf(t.S, id)), waiting);
+  assert.ok(Object.keys(t.S.carry.played).length === 11);
+});

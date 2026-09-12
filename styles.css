@@ -155,7 +155,7 @@ body.dragging { -webkit-user-select: none; user-select: none; cursor: grabbing; 
 /* Header bar */
 .bar { position: sticky; top: 0; z-index: 5; background: var(--bg); padding-block: 10px; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; border-bottom: 2px solid var(--line); }
 .clock { font-family: var(--display); font-size: 50px; font-weight: 800; line-height: 1; }
-.clock small { font-family: var(--body); font-size: 15px; font-weight: 700; color: var(--muted); margin-left: 8px; letter-spacing: .06em; text-transform: uppercase; }
+.clock small { display: block; font-family: var(--body); font-size: 15px; font-weight: 700; color: var(--muted); margin-top: 4px; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
 
 /* Setup */
 .setting { display: flex; flex-direction: column; gap: 8px; }

@@ -45,6 +45,7 @@
   // Per-render view model: the move being shown (pending or preview) and what every row needs.
   const ui = { sel: null, sheet: false, pocket: false, viewKey: '', view: null, screen: '', els: new Map(), toastTimer: null, lastSave: 0 };
   const ruleDraft = { open: false, type: 'apart', ids: [], min: 1 };
+  let editRoster = false; // setup screen: show Remove buttons only while editing the team
   const liveGame = () => !!(S.game && !S.game.ended);
   const homeScreen = () => (liveGame() ? 'game' : 'setup');
 
@@ -177,10 +178,17 @@
     const list = $('attendList'); list.innerHTML = '';
     S.players.forEach((p) => {
       const row = document.createElement('div'); row.className = 'attend';
-      row.appendChild(btn(p.name, 'here', () => { p.here = !p.here; save(); renderSetup(); }, { pressed: !!p.here }));
-      row.appendChild(btn('Remove', 'sm quiet', () => { if (!confirm('Remove ' + p.name + ' from the roster?')) return; const r = E.removePlayer(S, p.id); if (!r.ok) { toast(r.msg); return; } save(); renderSetup(); toast(p.name + ' removed'); }, { title: 'Remove ' + p.name, icon: 'trash' }));
+      const inRules = S.rules.filter((r) => r.ids.includes(p.id)).length;
+      row.appendChild(btn(p.name, 'here', () => { p.here = !p.here; save(); renderSetup(); }, { pressed: !!p.here, title: p.name + (p.here ? ': here. Tap if not here today.' : ': not here today. Tap when they arrive.') }));
+      if (editRoster) row.appendChild(btn('Remove', 'sm quiet', () => {
+        if (!confirm('Remove ' + p.name + ' from the team for good?' + (inRules ? ' ' + inRules + ' rule' + (inRules > 1 ? 's' : '') + ' about ' + p.name + ' will go too.' : '') + ' Not here today? Cancel and tap the name instead.')) return;
+        const r = E.removePlayer(S, p.id); if (!r.ok) { toast(r.msg); return; } save(); renderSetup(); toast(p.name + ' removed');
+      }, { title: 'Remove ' + p.name + ' from the team', icon: 'trash' }));
+      else { const st = document.createElement('span'); st.className = 'chip ' + (p.here ? 'on' : 'soft'); st.textContent = p.here ? 'Here' : 'Not here'; row.appendChild(st); }
       list.appendChild(row);
     });
+    const ed = $('editRoster'); ed.innerHTML = icon(editRoster ? 'check' : 'roster') + '<span>' + (editRoster ? 'Done editing' : 'Edit team') + '</span>'; ed.setAttribute('aria-pressed', String(editRoster));
+    $('newKid').hidden = !editRoster;
     const here = S.players.filter((p) => p.here).length;
     const gameMin = st.periods * st.periodSec / 60;
     const share = here > 0 ? Math.min(1, st.fieldSize / here) : 0;
@@ -405,7 +413,10 @@
     const fl = $('fieldList'); fl.innerHTML = ''; g.field.forEach((id) => fl.appendChild(playerRow(id, 'field', view)));
     const bl = $('benchList'); bl.innerHTML = '';
     g.bench.slice().sort((a, b) => (E.played(S, a) - E.played(S, b)) || (E.rest(S, b) - E.rest(S, a))).forEach((id) => bl.appendChild(playerRow(id, 'bench', view)));
-    if (!g.bench.length) { const e = document.createElement('p'); e.className = 'empty'; e.textContent = 'Everyone is on the field. Add a late kid below if one shows up.'; bl.appendChild(e); }
+    if (!g.bench.length) { const e = document.createElement('p'); e.className = 'empty'; e.textContent = 'Everyone is on the field.'; bl.appendChild(e); }
+    const nh = $('notHere'); nh.innerHTML = ''; const absent = S.players.filter((p) => !p.here && !g.field.includes(p.id) && !g.bench.includes(p.id) && !g.away.some((a) => a.id === p.id));
+    $('notHereWrap').hidden = absent.length === 0;
+    absent.forEach((p) => nh.appendChild(btn(p.name, 'quiet', () => { commit(() => E.arrive(S, p.id)); toast(p.name + ' is here and on the bench. Their rules are on.'); }, { title: p.name + ' arrived: put them on the bench', icon: 'plus' })));
     $('fieldCount').textContent = '(' + g.field.length + ' of ' + S.settings.fieldSize + ')';
     $('benchCount').textContent = '(' + g.bench.length + ')';
     const aw = $('awayList'); aw.innerHTML = ''; $('awayWrap').hidden = g.away.length === 0;
@@ -541,7 +552,8 @@
     load();
     $('addBtn').onclick = () => { const v = $('newName').value.trim(); if (!v) return; if (E.findByName(S, v)) { toast(v + ' is already on the roster'); return; } E.addPlayer(S, v); $('newName').value = ''; save(); renderSetup(); $('newName').focus(); };
     $('newName').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('addBtn').click(); });
-    $('lateBtn').onclick = () => { const v = $('lateName').value.trim(); if (!v) return; $('lateName').value = ''; commit(() => E.addLate(S, v)); };
+    $('lateBtn').onclick = () => { const v = $('lateName').value.trim(); if (!v) return; $('lateName').value = ''; const known = E.findByName(S, v); commit(() => E.addLate(S, v)); toast(known ? v + ' is here and on the bench.' : v + ' added to the team and the bench.'); };
+    $('editRoster').onclick = () => { editRoster = !editRoster; renderSetup(); };
     $('lateName').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('lateBtn').click(); });
     $('ruleAdd').onclick = () => { ruleDraft.open = true; ruleDraft.ids = []; ruleDraft.min = 1; renderSetup(); };
     $('ruleCancel').onclick = () => { ruleDraft.open = false; renderSetup(); };

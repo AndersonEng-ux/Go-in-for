@@ -24,20 +24,21 @@
   <section id="setup" class="screen">
     <div>
       <h1>Go In For</h1>
-      <p class="muted">Tap the kids who are here. Late kids can be added during the game.</p>
+      <p class="muted">This is your team. Tap a kid to mark them here or not here today. Their rules stay on the team and apply whenever they are here.</p>
     </div>
 
     <div class="card">
       <h2>Who's here</h2>
       <div id="attendList" class="list"></div>
-      <div class="field">
-        <label for="newName">Add a kid</label>
+      <p id="calc" class="calc"></p>
+      <div class="row"><button class="btn quiet sm" id="editRoster" type="button" aria-pressed="false">Edit team</button></div>
+      <div class="field" id="newKid" hidden>
+        <label for="newName">Add a kid to the team</label>
         <div class="row">
           <input type="text" id="newName" placeholder="First name" autocomplete="off" autocapitalize="words" style="flex:1">
           <button class="btn" id="addBtn" type="button">Add</button>
         </div>
       </div>
-      <p id="calc" class="calc"></p>
     </div>
 
     <div class="card" id="carryCard" hidden>
@@ -128,11 +129,16 @@
     <div class="zone" id="benchZone" data-drop="bench">
       <h2 style="margin-bottom:8px">Bench <span id="benchCount" class="num"></span></h2>
       <div id="benchList" class="list"></div>
-      <div class="field" style="margin-top:8px">
-        <label for="lateName">Late kid</label>
+      <div id="notHereWrap" style="margin-top:12px" hidden>
+        <h2 style="margin-bottom:8px">Not here yet</h2>
+        <p class="muted" style="font-size:15px;margin-bottom:8px">Tap a kid when they arrive. They join the bench and their rules apply.</p>
+        <div class="pick" id="notHere"></div>
+      </div>
+      <div class="field" style="margin-top:12px">
+        <label for="lateName">A kid who is not on the team yet</label>
         <div class="row">
           <input type="text" id="lateName" placeholder="First name" autocomplete="off" autocapitalize="words" style="flex:1">
-          <button class="btn" id="lateBtn" type="button">Add to bench</button>
+          <button class="btn" id="lateBtn" type="button">Add</button>
         </div>
       </div>
     </div>
@@ -194,6 +200,7 @@
       <ul>
         <li>One minute before a swap it says who is coming. When the timer hits, it says it again and buzzes.</li>
         <li>Tap <b>Done, they swapped</b> once the kids have moved. It repeats the call every so often until you do. Tapped by mistake? Undo sits on the message for a few seconds.</li>
+        <li>A kid shows up late: tap their name under <b>Not here yet</b>. They join the bench and every rule about them is live again. Only use Remove (under Edit team) to take a kid off the team for good.</li>
         <li>A kid walks off: tap <b>Left</b> on their row. It names the next kid to send in and checks back with you after a few minutes.</li>
         <li>Tap a kid on the field, then a kid on the bench, to swap by hand. Undo is in the menu.</li>
         <li>Lost track of who switched? Drag a kid by the handle on their row to the field or the bench so the app matches what is really out there. Drop a kid on another kid to swap them. If that leaves too many on, the plan says who comes off.</li>
