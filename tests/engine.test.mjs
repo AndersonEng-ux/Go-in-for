@@ -521,3 +521,14 @@ test('off now and live field size', () => {
   E.setFieldSize(t.S, 6, NOW); E.execute(t.S, NOW);
   E.setLineup(t.S, g.field.slice(0, 5), NOW); assert.equal(g.pending.type, 'fill'); assert.equal(g.pending.ons.length, 1);
 });
+
+test('review fix: a manual swap needs exactly one side on the field', () => {
+  const t = team(COACH.names, COACH.rules);
+  E.startGame(t.S, NOW); const g = t.S.game;
+  const away = g.field[0]; E.outEarly(t.S, away, false, NOW); g.pending = null;
+  const before = JSON.stringify([g.field, g.bench, g.away]);
+  assert.equal(E.manualSwap(t.S, { id: away, list: 'away' }, { id: g.bench[0], list: 'bench' }, NOW), false);
+  assert.equal(JSON.stringify([g.field, g.bench, g.away]), before, 'nothing changed');
+  assert.equal(E.manualSwap(t.S, { id: g.field[0], list: 'field' }, { id: away, list: 'away' }, NOW), true, 'field for away is fine');
+  assert.ok(g.field.includes(away) && g.away.length === 0);
+});

@@ -375,12 +375,15 @@
   function doneToday(S, id) { const a = S.game.away.find((x) => x.id === id); if (a) a.status = 'done'; }
   function checkLater(S, id, now) { const a = S.game.away.find((x) => x.id === id); if (a) { a.checkAt = now + S.settings.checkBackSec * 1000; a.prompted = false; } }
   function manualSwap(S, a, b, now) { // a, b = { id, list }; exactly one is on the field
-    const g = S.game; snapshot(S);
+    const g = S.game;
+    if ((a.list === 'field') === (b.list === 'field')) return false;
+    snapshot(S);
     const fieldP = a.list === 'field' ? a.id : b.id, otherP = a.list === 'field' ? b.id : a.id;
     detach(g, fieldP); detach(g, otherP);
     g.field.push(otherP); g.bench.push(fieldP); g.onSince[otherP] = g.total; g.offSince[fieldP] = g.total;
     g.pending = null;
     settle(S, now);
+    return true;
   }
   // Coach wants a kid off the field now: the plan names who replaces them (nobody, if the bench is empty).
   function offNow(S, id, now) {

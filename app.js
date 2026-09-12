@@ -60,7 +60,7 @@
   }
   function save() { ui.lastSave = now(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Could not save. The phone may be out of storage.'); } }
   // Every handler goes through commit: mutate, persist, redraw.
-  const commit = (fn) => { fn(); save(); render(); };
+  const commit = (fn) => { ui.open = null; fn(); save(); render(); };
 
   // ---------- Sound, speech, wake lock ----------
   let audioCtx = null, speechArmed = false;
@@ -359,7 +359,7 @@
     el.onclick = () => {
       if (ui.sel) { // picking a swap partner
         if (ui.sel.id === id) { ui.sel = null; render(); return; }
-        if (ui.sel.list === list || list === 'away') { ui.sel = { id, list }; render(); return; }
+        if (ui.sel.list === list || ((ui.sel.list !== 'field') === (list !== 'field'))) { ui.sel = { id, list }; render(); return; } // one side must be on the field
         const a = ui.sel; ui.sel = null; commit(() => E.manualSwap(S, a, { id, list }, now())); return;
       }
       ui.open = open ? null : id; render();
@@ -382,7 +382,7 @@
     if (drag.id || (e.pointerType === 'mouse' && e.button !== 0)) return;
     e.preventDefault();
     const row = h.closest('.prow'); const r = row.getBoundingClientRect();
-    const ghost = row.cloneNode(true); ghost.className = 'prow ghost'; ghost.setAttribute('aria-hidden', 'true');
+    const ghost = row.cloneNode(true); ghost.className = 'prow ghost tile'; ghost.setAttribute('aria-hidden', 'true');
     ghost.style.width = r.width + 'px'; ghost.style.left = r.left + 'px'; ghost.style.top = r.top + 'px';
     Object.assign(drag, { id, from: list, ghost, row, zone: null, target: null, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, moved: false });
     document.body.appendChild(ghost); row.classList.add('lifted'); document.body.classList.add('dragging');
@@ -452,8 +452,11 @@
     foot.appendChild(onHold(btn('Menu', 'menu quiet', null, { id: 'menuBtn', title: 'Menu (press and hold)', icon: 'menu' }), 500, openSheet, 'Hold to open the menu'));
   }
   // Text that changes every second, written into elements the last redraw created.
+  // The bottom block changes height with the call; keep the page's bottom padding in step with it.
+  function fitFoot() { const h = $('foot').offsetHeight + 8; if (ui.footH !== h) { ui.footH = h; document.body.style.paddingBottom = h + 'px'; } }
   function renderTimers() {
     const g = S.game; if (!g || S.screen !== 'game') return;
+    fitFoot();
     const t = now();
     $('clock').textContent = mmss(g.t); // counts up, like the match clock
     $('periodLbl').textContent = (S.settings.periods === 2 ? 'H' : 'Q') + g.period + ' of ' + S.settings.periods + ' · to ' + mmss(S.settings.periodSec) + (g.running ? '' : ' · paused');
@@ -567,7 +570,7 @@
     $('planCard').hidden = S.screen !== 'game';
     if (S.screen === 'game') { ui.view = view || buildView(); ui.viewKey = ui.view.key; renderGame(ui.view); renderTimers(); }
     else if (S.screen === 'setup') renderSetup(); else if (S.screen === 'summary') renderSummary(); else renderHelp();
-    document.body.style.paddingBottom = ($('foot').offsetHeight + 8) + 'px';
+    fitFoot();
     keepAwake(S.screen === 'game' && liveGame() && S.game.running);
     if (ui.screen !== S.screen) { ui.screen = S.screen; window.scrollTo(0, 0); }
   }
@@ -634,6 +637,7 @@
     document.addEventListener('keydown', arm);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { tick(); render(); } else save(); });
     window.addEventListener('pagehide', save);
+    window.addEventListener('resize', fitFoot);
     if (window.speechSynthesis) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
     render();
     setInterval(tick, 1000);
