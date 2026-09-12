@@ -82,9 +82,21 @@
   const BUZZ = { swap: [[880, 0, 0.15], [880, 0.25, 0.15], [1175, 0.5, 0.45]], soft: [[660, 0, 0.2], [880, 0.3, 0.25]], end: [[523, 0, 0.3], [392, 0.35, 0.5]] };
   function buzz(kind) { try { if (navigator.vibrate) navigator.vibrate(kind === 'swap' ? [200, 100, 200, 100, 400] : [150, 80, 150]); } catch (e) {} beep(BUZZ[kind] || BUZZ.soft); }
   let voice = null;
+  // Voices that run on the phone (the kids' names never leave it), best first: downloaded Premium and Enhanced voices beat the compact defaults.
+  const voiceRank = (v) => (/premium/i.test(v.name) ? 0 : /enhanced/i.test(v.name) ? 1 : /Samantha|Siri/i.test(v.name) ? 2 : /en[-_]US/i.test(v.lang) ? 3 : 4);
+  function localVoices() {
+    try { return speechSynthesis.getVoices().filter((v) => v.localService !== false && /^en/i.test(v.lang)).sort((a, b) => voiceRank(a) - voiceRank(b) || a.name.localeCompare(b.name)); } catch (e) { return []; }
+  }
   function pickVoice() {
-    // Prefer a voice that runs on the phone so the kids' names never leave it.
-    try { const vs = speechSynthesis.getVoices().filter((v) => v.localService !== false); voice = vs.find((v) => /en[-_]US/i.test(v.lang) && /Samantha|Siri/i.test(v.name)) || vs.find((v) => /^en/i.test(v.lang)) || null; } catch (e) {}
+    const vs = localVoices();
+    voice = (S.settings.voice && vs.find((v) => v.name === S.settings.voice)) || vs[0] || null;
+    if (S.screen === 'setup') renderVoices();
+  }
+  function renderVoices() {
+    const sel = $('voiceSel'); if (!sel) return; const vs = localVoices();
+    sel.innerHTML = '<option value="">Automatic' + (vs[0] ? ' (' + esc(vs[0].name) + ')' : '') + '</option>' + vs.map((v) => '<option value="' + esc(v.name) + '">' + esc(v.name) + '</option>').join('');
+    sel.value = vs.some((v) => v.name === S.settings.voice) ? S.settings.voice : '';
+    $('voiceNote').textContent = vs.some((v) => /premium|enhanced/i.test(v.name)) ? 'Premium and Enhanced voices sound the most natural.' : 'For a natural voice, download one on the phone: Settings, Accessibility, Spoken Content, Voices, English, then pick an Enhanced or Premium voice. It shows up here.';
   }
   function speak(text, force) {
     if (!window.speechSynthesis || (!S.settings.announce && !force)) return;
@@ -115,9 +127,12 @@
   }
 
   // ---------- Small UI helpers ----------
-  function toast(msg) {
+  // A short message; with `action` ({ label, fn }) it also carries one button and stays up longer.
+  function toast(msg, action) {
     let t = document.querySelector('.toast'); if (!t) { t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); t.setAttribute('aria-live', 'polite'); document.body.appendChild(t); }
-    t.textContent = msg; t.hidden = false; clearTimeout(ui.toastTimer); ui.toastTimer = setTimeout(() => { t.hidden = true; }, 2200);
+    t.textContent = msg; t.hidden = false; clearTimeout(ui.toastTimer);
+    if (action) { const b = btn(action.label, 'sm', () => { t.hidden = true; action.fn(); }, { id: 'toastAct', icon: 'undo' }); t.appendChild(b); }
+    ui.toastTimer = setTimeout(() => { t.hidden = true; }, action ? 6000 : 2200);
   }
   function btn(label, cls, onClick, opts) {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + (cls || '');
@@ -135,11 +150,6 @@
     el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); } });
     if (hint) el.addEventListener('click', (e) => { if (e.detail !== 0 && !el.dataset.hinted) { el.dataset.hinted = '1'; setTimeout(() => { delete el.dataset.hinted; }, 3000); toast(hint); } });
     return el;
-  }
-  function holdBtn(label, cls, ms, fn, id) {
-    const b = btn('', 'hold ' + (cls || ''), null, { id });
-    b.innerHTML = '<span class="fill"></span><span class="lbl">' + icon('check') + '<span>' + esc(label) + '</span></span>';
-    return onHold(b, ms, fn, 'Press and hold');
   }
   function seg(el, options, current, onPick) {
     el.innerHTML = '';
@@ -187,6 +197,8 @@
     seg($('segWarn'), SECS_OPTS, st.warnSec, set('warnSec'));
     seg($('segRepeat'), SECS_OPTS, st.repeatSec, set('repeatSec'));
     $('testVoice').onclick = () => { arm(); pickVoice(); speak('Swap now. Ava in for Ben. Cal in for Dee.', true); };
+    renderVoices();
+    $('voiceSel').onchange = () => { S.settings.voice = $('voiceSel').value; save(); arm(); pickVoice(); speak('Swap now. Ava in for Ben.', true); };
 
     const rl = $('ruleList'); rl.innerHTML = '';
     S.rules.forEach((r) => {
@@ -244,10 +256,10 @@
     : pr.on ? '<div class="pair"><span class="on">' + esc(E.nameOf(S, pr.on)) + '</span><span class="for">goes in</span></div>'
     : '<div class="pair"><span class="off">' + esc(E.nameOf(S, pr.off)) + '</span><span class="for">comes off</span></div>';
   const pairsHtml = (p) => '<div class="pairs">' + p.pairs.map(pairLine).join('') + '</div>' + (p.note ? '<p class="note">' + esc(p.note) + '</p>' : '');
-  const confirmSwap = () => { commit(() => E.execute(S, now())); toast('Swapped'); };
+  const confirmSwap = () => { commit(() => E.execute(S, now())); toast('Swapped.', { label: 'Undo', fn: () => { if (E.undo(S)) { save(); render(); toast('Undone'); } } }); };
   const swapNow = () => commit(() => { if (!E.subNow(S, now())) toast('No legal swap right now'); });
   const togglePlay = () => commit(() => E.togglePlay(S, now()));
-  const doneBtn = (id) => holdBtn('Done, they swapped', 'primary big', 600, confirmSwap, id);
+  const doneBtn = (id) => btn('Done, they swapped', 'primary big', confirmSwap, { id, icon: 'check' });
   function returnNow(id) {
     const r = E.returnNow(S, id, now()); save(); render();
     if (r.ok) speak(callText(S.game.pending)); else toast(r.msg);

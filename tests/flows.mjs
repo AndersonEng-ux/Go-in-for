@@ -61,9 +61,13 @@ await ff(30); s = await st();
 check(s.game.pending && s.game.pending.type === 'rotation', 'swap due creates a pending rotation');
 check(await p.$('#goBtn') !== null, 'hold-to-confirm button shown');
 await shot('03-swap-due');
-// A quick tap must NOT confirm
-await p.click('#goBtn'); await p.waitForTimeout(200); s = await st(); check(!!s.game.pending, 'quick tap does not confirm the swap');
-await hold('#goBtn', 800); await p.waitForTimeout(300); s = await st(); check(!s.game.pending, 'press-and-hold confirms the swap');
+// One tap confirms; the toast offers Undo
+const beforeTap = s.game.field.slice();
+await p.click('#goBtn'); await p.waitForTimeout(250); s = await st(); check(!s.game.pending, 'a single tap confirms the swap');
+check(await p.$('#toastAct') !== null && !(await p.$eval('.toast', (e) => e.hidden)), 'Undo offered on the toast');
+await p.click('#toastAct'); await p.waitForTimeout(250); s = await st(); check(s.game.field.join() === beforeTap.join() && !!s.game.pending, 'Undo on the toast restores the lineup and the call');
+await p.click('#goBtn'); await p.waitForTimeout(250); s = await st(); check(!s.game.pending, 'confirmed again');
+check(await p.$eval('#voiceSel', (e) => e.options.length >= 1), 'voice picker present');
 check(s.game.subT > 50 && s.game.subT <= 60, 'swap timer reset after confirm (' + s.game.subT + ')');
 check(s.game.history.length >= 1, 'undo history recorded');
 
@@ -74,13 +78,13 @@ await p.waitForTimeout(250); s = await st();
 check(s.game.field.length === 5 && s.game.pending && s.game.pending.type === 'fill', leftName + ' left: fill move offered');
 check(s.game.away.length === 1, 'kid listed as off to the side');
 await shot('04-left-early');
-await hold('#goBtn', 800); await p.waitForTimeout(300); s = await st(); check(s.game.field.length === 6, 'fill confirmed, six on again');
+await p.click('#goBtn'); await p.waitForTimeout(300); s = await st(); check(s.game.field.length === 6, 'fill confirmed, six on again');
 await p.evaluate(() => { const g = window.__goinfor.state.game; g.away[0].checkAt = Date.now() - 1000; window.__goinfor.tick(); }); await p.waitForTimeout(250);
 check((await p.$eval('#banners', (e) => e.innerText)).includes('Check on ' + leftName), 'check-back banner appears');
 await shot('05-check-back');
 await p.click('#banners button:has-text("Yes, in now")'); await p.waitForTimeout(250); s = await st();
 check(s.game.pending && s.game.pending.type === 'return' && s.game.pending.ons.length === 1, 'priority return offered');
-await hold('#goBtn', 800); await p.waitForTimeout(300); s = await st();
+await p.click('#goBtn'); await p.waitForTimeout(300); s = await st();
 check(s.game.field.map((id) => s.players.find((x) => x.id === id).name).includes(leftName), leftName + ' back on the field');
 check(s.game.away.length === 0, 'off-to-the-side list cleared');
 

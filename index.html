@@ -61,6 +61,11 @@
       <div class="toggle"><span>Speak the calls out loud (works with AirPods)</span><button class="btn sm" id="tglAnnounce" type="button" role="switch"></button></div>
       <div class="setting"><span class="lab">Heads-up before a swap</span><div class="seg" id="segWarn"></div></div>
       <div class="setting"><span class="lab">Repeat an unconfirmed call every</span><div class="seg" id="segRepeat"></div></div>
+      <div class="field">
+        <label for="voiceSel">Voice</label>
+        <select id="voiceSel"></select>
+        <p class="muted" id="voiceNote"></p>
+      </div>
       <div class="row"><button class="btn quiet" id="testVoice" type="button">Test the voice</button></div>
       <p class="muted">Keep the ringer switch on. iPhone mutes web audio on silent.</p>
     </div>
@@ -177,6 +182,7 @@
       <h3>Pre-game checklist</h3>
       <ul>
         <li>Ringer switch on. AirPods in if you want the calls spoken.</li>
+        <li>A natural voice: Settings, Accessibility, Spoken Content, Voices, English, download an Enhanced or Premium voice, then pick it under Announcing.</li>
         <li>Screen brightness up. The app keeps the screen awake while the clock runs.</li>
         <li>Tap the kids who are here. Check the minutes line under the roster.</li>
         <li>Start the game, triple-click for Guided Access, tap the menu and choose Pocket screen.</li>
@@ -187,7 +193,7 @@
       <h3>During the game</h3>
       <ul>
         <li>One minute before a swap it says who is coming. When the timer hits, it says it again and buzzes.</li>
-        <li>Press and hold <b>Done, they swapped</b> once the kids have moved. It repeats the call every so often until you do.</li>
+        <li>Tap <b>Done, they swapped</b> once the kids have moved. It repeats the call every so often until you do. Tapped by mistake? Undo sits on the message for a few seconds.</li>
         <li>A kid walks off: tap <b>Left</b> on their row. It names the next kid to send in and checks back with you after a few minutes.</li>
         <li>Tap a kid on the field, then a kid on the bench, to swap by hand. Undo is in the menu.</li>
         <li>Lost track of who switched? Drag a kid by the handle on their row to the field or the bench so the app matches what is really out there. Drop a kid on another kid to swap them. If that leaves too many on, the plan says who comes off.</li>

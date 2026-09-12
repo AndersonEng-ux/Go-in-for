@@ -30,7 +30,7 @@
         { id: 'r3', type: 'apart', ids: ['p0', 'p4'] },               // not on the field together
         { id: 'r4', type: 'notOffTogether', ids: ['p3', 'p5'] },      // never come off in the same swap
       ],
-      settings: { fieldSize: 6, subsPer: 2, intervalSec: 240, periods: 4, periodSec: 600, checkBackSec: 180, announce: true, warnSec: 60, repeatSec: 30 },
+      settings: { fieldSize: 6, subsPer: 2, intervalSec: 240, periods: 4, periodSec: 600, checkBackSec: 180, announce: true, warnSec: 60, repeatSec: 30, voice: '' },
       game: null,
     };
   }
@@ -38,6 +38,7 @@
     const d = defaults().settings; const out = Object.assign({}, d);
     Object.keys(LIMITS).forEach((k) => { const v = Number(raw && raw[k]); out[k] = Number.isFinite(v) ? Math.min(LIMITS[k][1], Math.max(LIMITS[k][0], Math.round(v))) : d[k]; });
     out.announce = raw && raw.announce != null ? !!raw.announce : d.announce;
+    out.voice = raw && typeof raw.voice === 'string' ? raw.voice.slice(0, 80) : '';
     return out;
   }
   const findByName = (S, name) => { const n = cleanName(name).toLowerCase(); return n ? S.players.find((p) => p.name.toLowerCase() === n) || null : null; };
