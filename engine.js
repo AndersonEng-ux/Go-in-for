@@ -203,16 +203,21 @@
   // The next timed swap, with a note explaining any compromise.
   function rotationPlan(S) {
     const g = S.game;
+    // Fairness catch-up: when a kid at the game is a full stint behind the leader, let this swap grow by one so they catch up.
+    const act = [...activeIds(S)].filter((id) => !g.locked.includes(id)); const mins = act.map((id) => played(S, id));
+    const gap = act.length ? Math.max(...mins) - Math.min(...mins) : 0;
+    const extra = gap >= S.settings.intervalSec ? 1 : 0;
     const over = g.field.length - S.settings.fieldSize; // too many on (after a drag): take the extras off without bringing anyone on
     if (over > 0) { const p = plan(S, { on: 0, off: over, shrink: true }); if (p) { p.note = 'Too many on the field.'; return p; } }
-    const k = Math.min(S.settings.subsPer, g.bench.length, g.field.length);
+    const k = Math.min(S.settings.subsPer + extra, g.bench.length, g.field.length);
     if (k <= 0) return null;
     const short = S.settings.fieldSize - g.field.length; // playing short: bring on extra without taking off
     if (short > 0) { const p = plan(S, { on: Math.min(g.bench.length, short), off: 0, shrink: true }); if (p) { p.note = ''; return p; } }
+    const grew = (p) => (p && extra && p.ons.length > S.settings.subsPer ? ' Three this time so nobody falls a stint behind.' : '');
     let p = plan(S, { on: k, off: k, shrink: true, protectFresh: true });
-    if (p) { p.note = p.reduced ? 'Smaller swap: the other kids just came on.' : ''; return p; }
+    if (p) { p.note = ((p.reduced && p.ons.length < S.settings.subsPer) ? 'Smaller swap: the other kids just came on.' : '') + grew(p); p.note = p.note.trim(); return p; }
     p = plan(S, { on: k, off: k, shrink: true });
-    if (p) p.note = p.reduced ? 'Smaller swap so the rules hold.' : (freshMatters(S) && p.offs.some((id) => isFresh(S, id)) ? 'Someone who just came on has to come off so the rules hold.' : '');
+    if (p) p.note = (((p.reduced && p.ons.length < S.settings.subsPer) ? 'Smaller swap so the rules hold.' : (freshMatters(S) && p.offs.some((id) => isFresh(S, id)) ? 'Someone who just came on has to come off so the rules hold.' : '')) + grew(p)).trim();
     return p;
   }
   function planSpeech(S, p) {

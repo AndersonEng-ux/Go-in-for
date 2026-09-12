@@ -532,3 +532,12 @@ test('review fix: a manual swap needs exactly one side on the field', () => {
   assert.equal(E.manualSwap(t.S, { id: g.field[0], list: 'field' }, { id: away, list: 'away' }, NOW), true, 'field for away is fine');
   assert.ok(g.field.includes(away) && g.away.length === 0);
 });
+
+test('fairness: a full game with the coach rules ends within one stint of equal minutes', () => {
+  const t = team(COACH.names, COACH.rules, { intervalSec: 240, periods: 2, periodSec: 1200, warnSec: 60, repeatSec: 0 });
+  let T = NOW; E.startGame(t.S, T); const g = t.S.game; let grew = 0;
+  while (!g.ended) { T += 1000; E.tick(t.S, T); if (g.pending) { if (g.pending.ons.length > 2) { grew++; assert.match(g.pending.note, /Three this time/); } E.execute(t.S, T); } if (g.breakPending) E.nextPeriod(t.S, T); }
+  const mins = [...E.activeIds(t.S)].map((id) => E.played(t.S, id));
+  assert.ok(Math.max(...mins) - Math.min(...mins) <= 240, 'spread ' + (Math.max(...mins) - Math.min(...mins)) + ' s');
+  assert.ok(grew > 0, 'the catch-up swap was used');
+});
