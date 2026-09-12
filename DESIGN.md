@@ -78,3 +78,22 @@ One shape (pill, 999px radius), one weight (600; 700 on big and chips), three he
 | Tile action | 40px pill chip, uppercase 12px, icon + label | 40 | Sub, Goalie, Left, Pick |
 
 Pressed: scale .97 (round main .94). Disabled: 45% opacity. Focus: 3px blue ring, 2px offset.
+
+## Spacing (AP 1984 scale)
+
+Pulled from the Anderson Design System tokens: a 4px scale, three control heights, three elevation levels. Every gap, padding and margin in the app uses a step; nothing is hand-tuned.
+
+| Step | px | Used for |
+|---|---|---|
+| sp-1 | 4 | label-to-value, tile name-to-meta, segmented track padding |
+| sp-2 | 8 | gaps in lists, tiles, rows, pills, control row; paragraph spacing |
+| sp-3 | 12 | card internal gap, column gap, rule row padding, input padding |
+| sp-4 | 16 | page gutter, banners, sheet padding, plan card side padding |
+| sp-5 | 20 | card padding on phones, button side padding |
+| sp-6 | 24 | gap between screen sections, big button side padding |
+| sp-7 | 28 | card padding at 480px and up (the system's card pad) |
+| sp-8 | 32 | column header height, section summary height |
+
+Controls: 36 small (unused on the sideline), 44 medium (tap floor: small pills, chips, tile actions), 48 large (standard buttons, inputs, list rows), 56 big (Start), 56 and 76 round.
+
+Elevation: 1 `0 6px 14px -12px rgba(17,17,17,.25)` cards, tiles, side controls; 2 `0 14px 28px -22px rgba(17,17,17,.35)` the pinned call card; 3 `0 24px 48px -16px rgba(17,17,17,.30)` sheets and toasts. Dark theme uses the system's dark set. The system's radius lock (0) is not adopted; this app keeps pills and 14 to 18px cards from the Strava direction.
