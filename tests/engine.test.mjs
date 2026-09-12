@@ -449,3 +449,22 @@ test('attendance: reloading the roster keeps the carry-over by name', () => {
   assert.deepEqual(t.S.carry.waiting.map((id) => E.nameOf(t.S, id)), waiting);
   assert.ok(Object.keys(t.S.carry.played).length === 11);
 });
+
+test('who is on: set the six on the field from scratch', () => {
+  const t = team(COACH.names, COACH.rules);
+  E.startGame(t.S, NOW); const g = t.S.game;
+  E.tick(t.S, NOW + 100 * 1000);
+  const away = g.field[0]; E.outEarly(t.S, away, false, NOW + 100 * 1000); g.pending = null;
+  const stay = g.field[0], stayStint = E.stint(t.S, stay);
+  const on = [stay, g.field[1], g.bench[0], g.bench[1], g.bench[2], away];
+  const hist = g.history.length;
+  assert.equal(E.setLineup(t.S, on.concat(on[0], 'nope'), NOW + 100 * 1000), true);
+  assert.deepEqual(g.field, on);
+  assert.equal(g.field.length + g.bench.length, 11); assert.equal(g.away.length, 0);
+  assert.equal(E.stint(t.S, stay), stayStint, 'a kid who stayed on keeps their stint');
+  assert.equal(E.stint(t.S, g.bench[0]) >= 0 && E.rest(t.S, g.bench[g.bench.length - 1]), 0, 'a kid who came off starts resting now');
+  assert.ok(E.isFresh(t.S, on[2]), 'a kid who came on is fresh');
+  assert.equal(g.pending, null); assert.equal(g.history.length, hist + 1);
+  assert.equal(E.setLineup(t.S, ['nope'], NOW), false);
+  assert.equal(E.undo(t.S), true); assert.ok(g.away.length === 1);
+});

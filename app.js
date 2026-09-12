@@ -4,7 +4,7 @@
   const E = window.Engine;
   const KEY = 'goinfor_v2';
   const OLD_KEY = 'goinfor_v1';
-  const APP_VERSION = '1.1.0';
+  const APP_VERSION = '1.2.0';
   const SAVE_EVERY_MS = 5000;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -418,6 +418,7 @@
     $('notHereWrap').hidden = absent.length === 0;
     absent.forEach((p) => nh.appendChild(btn(p.name, 'quiet', () => { commit(() => E.arrive(S, p.id)); toast(p.name + ' is here and on the bench. Their rules are on.'); }, { title: p.name + ' arrived: put them on the bench', icon: 'plus' })));
     $('fieldCount').textContent = '(' + g.field.length + ' of ' + S.settings.fieldSize + ')';
+    $('whoOnBtn').onclick = openWhoOn;
     $('benchCount').textContent = '(' + g.bench.length + ')';
     const aw = $('awayList'); aw.innerHTML = ''; $('awayWrap').hidden = g.away.length === 0;
     g.away.forEach((a) => {
@@ -458,6 +459,7 @@
     panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', 'Game menu');
     const u = btn('Undo last move', 'quiet', () => { if (E.undo(S)) { save(); toast('Undone'); } closeSheet(); }, { icon: 'undo' }); u.disabled = !(S.game && S.game.history.length);
     panel.append(u,
+      btn("Who's on right now", 'quiet', () => { ui.sheet = false; openWhoOn(); }, { icon: 'roster' }),
       btn('Pocket screen', 'quiet', () => { closeSheet(); openPocket(); }, { icon: 'pocket' }),
       btn('Roster & rules', 'quiet', () => { ui.sheet = false; commit(() => { S.screen = 'setup'; }); }, { icon: 'roster' }),
       btn('Help & setup', 'quiet', () => { ui.sheet = false; commit(() => { S.screen = 'help'; }); }, { icon: 'help' }),
@@ -467,6 +469,27 @@
     const first = panel.querySelector('button:not([disabled])'); if (first) first.focus();
   }
   function closeSheet() { ui.sheet = false; render(); }
+  // "No idea what happened, but these six are on": tap the kids on the field, everyone else goes to the bench.
+  function openWhoOn() {
+    const g = S.game; ui.sheet = true; ui.sel = null; const ov = $('overlay'); ov.innerHTML = '';
+    const picked = new Set(g.field);
+    const sh = document.createElement('div'); sh.className = 'sheet'; const panel = document.createElement('div'); panel.className = 'panel';
+    panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', 'Who is on the field right now');
+    panel.innerHTML = '<h3>Who is on right now?</h3><p class="muted">Tap the kids you can see on the field. Everyone else goes to the bench.</p><div class="pick" id="whoPick"></div><p class="calc" id="whoCount" aria-live="polite"></p>';
+    const kids = [...g.field, ...g.bench, ...g.away.map((a) => a.id)];
+    const pick = panel.querySelector('#whoPick'); const count = panel.querySelector('#whoCount');
+    const draw = () => {
+      pick.innerHTML = ''; kids.forEach((id) => pick.appendChild(btn(E.nameOf(S, id), '', () => { if (picked.has(id)) picked.delete(id); else picked.add(id); draw(); }, { pressed: picked.has(id) })));
+      const v = E.violations(S, [...picked], []);
+      count.innerHTML = '<b>' + picked.size + '</b> of ' + S.settings.fieldSize + ' on' + (v.length ? '. ' + esc(v.join('. ')) + '.' : '');
+      ok.disabled = picked.size === 0;
+    };
+    const row = document.createElement('div'); row.className = 'row';
+    const ok = btn("That's who's on", 'primary big', () => { const ids = kids.filter((id) => picked.has(id)); ui.sheet = false; commit(() => E.setLineup(S, ids, now())); toast('Lineup set. ' + ids.length + ' on.'); }, { id: 'whoOk', icon: 'check' });
+    row.append(btn('Cancel', 'quiet', closeSheet, { icon: 'close' }), ok);
+    panel.appendChild(row); draw();
+    sh.appendChild(panel); sh.addEventListener('click', (e) => { if (e.target === sh) closeSheet(); }); ov.appendChild(sh);
+  }
   function openPocket() {
     ui.pocket = true; ui.pocketKey = ''; const ov = $('overlay'); ov.innerHTML = '';
     const pk = document.createElement('div'); pk.className = 'pocket'; pk.id = 'pocket';
@@ -568,7 +591,7 @@
     $('nextGameBtn').onclick = () => commit(() => E.newGame(S, true));
     $('newGameBtn').onclick = () => commit(() => E.newGame(S, false));
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (ui.sheet) closeSheet(); else if (ui.pocket) closePocket(); } });
-    [['addBtn', 'plus'], ['lateBtn', 'plus'], ['pasteBtn', 'link'], ['copyLink', 'link'], ['helpBtn', 'help'], ['helpBack', 'undo'], ['nextGameBtn', 'play'], ['newGameBtn', 'undo'], ['ruleAdd', 'plus'], ['testVoice', 'speak']].forEach(([id, ic]) => { const b = $(id); if (b) b.innerHTML = icon(ic) + '<span>' + b.textContent.trim().replace(/^\+\s*/, '') + '</span>'; });
+    [['whoOnBtn', 'roster'], ['addBtn', 'plus'], ['lateBtn', 'plus'], ['pasteBtn', 'link'], ['copyLink', 'link'], ['helpBtn', 'help'], ['helpBack', 'undo'], ['nextGameBtn', 'play'], ['newGameBtn', 'undo'], ['ruleAdd', 'plus'], ['testVoice', 'speak']].forEach(([id, ic]) => { const b = $(id); if (b) b.innerHTML = icon(ic) + '<span>' + b.textContent.trim().replace(/^\+\s*/, '') + '</span>'; });
     document.addEventListener('pointerdown', arm, { passive: true });
     document.addEventListener('keydown', arm);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { tick(); render(); } else save(); });

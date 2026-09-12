@@ -361,6 +361,20 @@
     settle(S, now);
     return true;
   }
+  // "These are the kids on right now": everyone in `ids` is on the field, everyone else at the game is on the bench.
+  // Kids who were already on keep their stint; kids who come on start one; kids who come off start resting.
+  function setLineup(S, ids, now) {
+    const g = S.game; const on = ids.filter((id, i) => ids.indexOf(id) === i && (g.field.includes(id) || g.bench.includes(id) || g.away.some((a) => a.id === id)));
+    if (!on.length) return false;
+    snapshot(S);
+    const wasOn = new Set(g.field);
+    g.field.filter((id) => !on.includes(id)).forEach((id) => { detach(g, id); g.bench.push(id); g.offSince[id] = g.total; });
+    on.forEach((id) => { if (!wasOn.has(id)) { detach(g, id); g.onSince[id] = g.total; if (g.played[id] == null) g.played[id] = 0; } });
+    g.field = on.slice();
+    g.pending = null;
+    settle(S, now);
+    return true;
+  }
   function addPlayer(S, name) {
     name = cleanName(name); if (!name) return null;
     let p = findByName(S, name);
@@ -482,6 +496,6 @@
 
   return { STATE_VERSION, LIMITS, MAX_PLAYERS, MAX_RULES, defaults, migrate, findByName, nameOf, activeIds, violations, played, stint, rest, isFresh, freshMatters,
     pinnedByRule, plan, rotationPlan, planSpeech, undo, startGame, execute, dismissPending, subNow, toggleLock, outEarly, returnNow, toBench,
-    doneToday, checkLater, manualSwap, movePlayer, usableCarry, carryPreview, addPlayer, arrive, addLate, removePlayer, addRule, togglePlay, nextPeriod, endGame, newGame, tick, markSpoken,
+    doneToday, checkLater, manualSwap, movePlayer, setLineup, usableCarry, carryPreview, addPlayer, arrive, addLate, removePlayer, addRule, togglePlay, nextPeriod, endGame, newGame, tick, markSpoken,
     importRoster, encodeRoster, decodeRoster };
 });

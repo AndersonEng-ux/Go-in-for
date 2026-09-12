@@ -148,6 +148,15 @@ s = await st(); check(s.game.field.length === 6, 'drag back to the bench leaves 
 // A tap on the grip is not a move
 await p.click('#benchList .prow:first-child .grip'); await p.waitForTimeout(150); s = await st(); check(s.game.field.length === 6, 'a tap on the grip moves nobody');
 
+// Who's on right now: pick six, everyone else to the bench
+await p.click('#whoOnBtn'); await p.waitForTimeout(250);
+check(await p.$('#whoPick') !== null && (await p.$$('#whoPick .btn[aria-pressed="true"]')).length === 6, "Who's on sheet opens with the current six picked");
+const whoName = (i) => p.$eval('#whoPick .btn:nth-child(' + (i + 1) + ')', (e) => e.textContent);
+const swappedOut = await whoName(0), swappedIn = await whoName(10);
+await p.click('#whoPick .btn:nth-child(1)'); await p.waitForTimeout(100); await p.click('#whoPick .btn:nth-child(11)'); await p.waitForTimeout(150);
+await p.click('#whoOk'); await p.waitForTimeout(300); s = await st(); const fWho = await names('#fieldList');
+check(s.game.field.length === 6 && fWho.includes(swappedIn) && !fWho.includes(swappedOut) && await p.$('.sheet') === null, "That's who's on sets the lineup (" + swappedIn + ' on, ' + swappedOut + ' off)');
+
 // Pocket screen
 await hold('#menuBtn', 700); await p.waitForTimeout(250); await p.click('.sheet button:has-text("Pocket")'); await p.waitForTimeout(250);
 check(await p.$('#pocket') !== null, 'pocket screen opens');
