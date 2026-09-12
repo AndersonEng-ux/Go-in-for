@@ -100,7 +100,7 @@ input[type="text"] { font: inherit; font-size: 19px; padding: 12px 14px; border:
 /* Cards and lists */
 .card { background: var(--surface); border-radius: 16px; padding: 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--line); }
 .list { display: flex; flex-direction: column; gap: 8px; }
-.prow { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 2px solid var(--line); }
+.prow { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding: 10px 12px 10px 4px; border-radius: 12px; background: var(--surface); border: 2px solid var(--line); }
 .prow.selectable { cursor: pointer; }
 .prow.selected { border-color: var(--focus); box-shadow: 0 0 0 3px var(--focus); }
 .prow.next-off { border-color: var(--amber); border-width: 3px; }
@@ -119,6 +119,17 @@ input[type="text"] { font: inherit; font-size: 19px; padding: 12px 14px; border:
   transition: background-color var(--t-base), color var(--t-base), transform var(--t-fast); }
 .icon .ic { width: 20px; height: 20px; }
 .icon.active { background: var(--pitch); color: var(--pitch-ink); }
+
+/* Drag a kid between the lists */
+.btn.grip { width: 44px; min-width: 44px; min-height: 52px; padding: 0; align-self: stretch; gap: 0; background: transparent; color: var(--muted); border-radius: 8px; cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.btn.grip .ic { width: 26px; height: 26px; margin: 0; }
+.btn.grip:active { cursor: grabbing; background: var(--surface-2); transform: none; }
+body.dragging { -webkit-user-select: none; user-select: none; cursor: grabbing; }
+.prow.lifted { opacity: .35; }
+.prow.ghost { position: fixed; z-index: 40; margin: 0; pointer-events: none; box-shadow: 0 14px 34px rgba(0, 0, 0, .35); border-color: var(--focus); background: var(--surface); }
+.zone { border-radius: 14px; padding: 4px; margin: -4px; transition: box-shadow var(--t-base), background-color var(--t-base); }
+.zone.drop-over { box-shadow: 0 0 0 3px var(--pitch); background: var(--pitch-soft); }
+.prow.drop-target { border-color: var(--focus); box-shadow: 0 0 0 4px var(--focus); }
 
 /* Plan card */
 .plan { border: 3px solid var(--line); }

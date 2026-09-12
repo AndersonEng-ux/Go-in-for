@@ -40,6 +40,12 @@
       <p id="calc" class="calc"></p>
     </div>
 
+    <div class="card" id="carryCard" hidden>
+      <h2>Carrying on from the last game</h2>
+      <div id="carryText" class="help"></div>
+      <div class="seg" id="carrySeg"></div>
+    </div>
+
     <div class="card">
       <h2>Game</h2>
       <div class="setting"><span class="lab">Kids on the field</span><div class="seg" id="segSize"></div></div>
@@ -109,12 +115,12 @@
 
     <div class="card plan" id="planCard"></div>
 
-    <div>
+    <div class="zone" id="fieldZone" data-drop="field">
       <h2 style="margin-bottom:8px">On the field <span id="fieldCount" class="num"></span></h2>
       <div id="fieldList" class="list"></div>
     </div>
 
-    <div>
+    <div class="zone" id="benchZone" data-drop="bench">
       <h2 style="margin-bottom:8px">Bench <span id="benchCount" class="num"></span></h2>
       <div id="benchList" class="list"></div>
       <div class="field" style="margin-top:8px">
@@ -131,14 +137,16 @@
       <div id="awayList" class="list"></div>
     </div>
 
-    <p class="muted" style="font-size:15px">Tap a kid on the field, then a kid on the bench, to swap by hand. Hold the menu button for undo, pocket screen, roster, and end game.</p>
+    <p class="muted" style="font-size:15px">Lost track? Drag a kid by the handle to the field or the bench to match what is really out there. Tap a kid on the field, then a kid on the bench, to swap. Hold the menu button for undo, pocket screen, roster, and end game.</p>
   </section>
 
   <!-- SUMMARY -->
   <section id="summary" class="screen" hidden>
     <div><h1>Final whistle</h1><p class="muted" id="sumLine"></p></div>
     <div class="card"><table id="sumTable"></table></div>
-    <div class="row"><button class="btn primary big" id="newGameBtn" type="button">New game, same roster</button></div>
+    <div class="row"><button class="btn primary big" id="nextGameBtn" type="button">Next game, carry on</button></div>
+    <div class="row"><button class="btn quiet" id="newGameBtn" type="button">Fresh start instead</button></div>
+    <p class="muted">Carry on keeps today's minutes and the bench order: the kids who were waiting start the next game, and the kids who just came off wait their turn. Good for 12 hours.</p>
   </section>
 
   <!-- HELP -->
@@ -182,6 +190,15 @@
         <li>Press and hold <b>Done, they swapped</b> once the kids have moved. It repeats the call every so often until you do.</li>
         <li>A kid walks off: tap <b>Left</b> on their row. It names the next kid to send in and checks back with you after a few minutes.</li>
         <li>Tap a kid on the field, then a kid on the bench, to swap by hand. Undo is in the menu.</li>
+        <li>Lost track of who switched? Drag a kid by the handle on their row to the field or the bench so the app matches what is really out there. Drop a kid on another kid to swap them. If that leaves too many on, the plan says who comes off.</li>
+      </ul>
+    </div>
+
+    <div class="card help">
+      <h3>Back-to-back games</h3>
+      <ul>
+        <li>End the game from the menu, then tap <b>Next game, carry on</b>. The kids who were waiting start the next game, longest wait first, and the minutes carry over so the day stays fair.</li>
+        <li>The setup screen shows who starts. Switch to <b>Fresh start</b> there if you would rather begin from the roster.</li>
       </ul>
     </div>
 

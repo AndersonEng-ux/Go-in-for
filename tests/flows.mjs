@@ -99,6 +99,40 @@ await p.click('.sheet button:has-text("Undo")'); await p.waitForTimeout(250);
 const fieldUndo = await names('#fieldList');
 check(fieldUndo.includes(fName), 'undo restored ' + fName);
 
+// Drag: bench kid onto the field area (move, no pairing), then a field kid onto a bench kid (swap)
+// A finger cannot leave the screen: park it at the edge and let the app auto-scroll until the target is in view.
+const dragTo = async (fromSel, toSel) => {
+  const from = await p.$(fromSel); await from.scrollIntoViewIfNeeded(); const a = await from.boundingBox();
+  const x = a.x + a.width / 2; const H = iphone.viewport.height;
+  await p.mouse.move(x, a.y + a.height / 2); await p.mouse.down(); await p.waitForTimeout(60);
+  await p.mouse.move(x + 4, a.y + a.height / 2 + 8, { steps: 3 });
+  for (let i = 0; i < 60; i++) {
+    const bb = await (await p.$(toSel)).boundingBox(); const ty = bb.y + Math.min(30, bb.height / 2);
+    if (ty < 100) { await p.mouse.move(x + 20, 30, { steps: 2 }); await p.waitForTimeout(80); continue; }
+    if (ty > H - 130) { await p.mouse.move(x + 20, H - 40, { steps: 2 }); await p.waitForTimeout(80); continue; }
+    await p.mouse.move(bb.x + bb.width / 2, ty, { steps: 8 }); await p.waitForTimeout(80);
+    const b2 = await (await p.$(toSel)).boundingBox(); // the page may have kept scrolling on the way down; re-aim once it is still
+    if (Math.abs(b2.y - bb.y) < 2) break;
+  }
+  await p.waitForTimeout(150); await p.mouse.up(); await p.waitForTimeout(300);
+};
+const dragged = (await names('#benchList'))[0];
+await dragTo('#benchList .prow:first-child .grip', '#fieldZone h2');
+s = await st(); check(s.game.field.length === 7 && s.game.bench.length === 4, 'drag moved ' + dragged + ' onto the field with no swap (' + s.game.field.length + ' on)');
+check((await p.$eval('#banners', (e) => e.innerText)).includes('7 on the field'), 'too-many banner shows');
+check((await p.$eval('#planCard', (e) => e.textContent)).includes('comes off'), 'plan offers who comes off');
+check(await p.$('.prow.ghost') === null, 'ghost removed after drop');
+check(!(await p.$eval('#banners', (e) => e.innerText)).includes('selected'), 'no phantom selection after a drop');
+await shot('06b-drag-over');
+const swapOn = (await names('#fieldList'))[0]; const swapOff = (await names('#benchList'))[0];
+await dragTo('#fieldList .prow:first-child .grip', '#benchList .prow:first-child');
+s = await st(); const fAfter = await names('#fieldList');
+check(s.game.field.length === 7 && fAfter.includes(swapOff) && !fAfter.includes(swapOn), 'drop on a kid swaps ' + swapOff + ' in for ' + swapOn);
+await dragTo('#fieldList .prow:first-child .grip', '#benchZone h2');
+s = await st(); check(s.game.field.length === 6, 'drag back to the bench leaves six on');
+// A tap on the grip is not a move
+await p.click('#benchList .prow:first-child .grip'); await p.waitForTimeout(150); s = await st(); check(s.game.field.length === 6, 'a tap on the grip moves nobody');
+
 // Pocket screen
 await hold('#menuBtn', 700); await p.waitForTimeout(250); await p.click('.sheet button:has-text("Pocket")'); await p.waitForTimeout(250);
 check(await p.$('#pocket') !== null, 'pocket screen opens');
@@ -119,7 +153,21 @@ await shot('09-summary', true);
 
 // Reload keeps state; help screen renders
 await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(400); s = await st(); check(s.screen === 'summary', 'state survives a reload');
-await p.click('#newGameBtn'); await p.waitForTimeout(200); await p.click('#helpBtn'); await p.waitForTimeout(200);
+const endField = s.game.field.slice(); const leastPlayed = Object.keys(s.game.played).sort((a, b) => s.game.played[a] - s.game.played[b])[0];
+await p.click('#nextGameBtn'); await p.waitForTimeout(250); s = await st();
+check(s.screen === 'setup' && !!s.carry, 'next game keeps the carry-over');
+check(await p.$eval('#carryCard', (e) => !e.hidden && e.innerText.includes('Start with:')), 'setup shows who starts next');
+check((await p.$eval('#startBtn', (e) => e.textContent)).includes('game 2'), 'start button says game 2');
+await shot('12-carry-setup', true);
+await p.click('#startBtn'); await p.waitForTimeout(400); s = await st();
+check(s.game.games === 2 && s.game.field.includes(leastPlayed) && s.game.field.join() !== endField.join(), 'game 2 starts with the kid who played least (' + (await names('#fieldList')).join(', ') + ')');
+check(Object.values(s.game.played).some((v) => v > 0), 'minutes carried into game 2');
+await hold('#menuBtn', 700); await p.waitForTimeout(250); await p.click('.sheet button:has-text("End game")'); await p.waitForTimeout(300); s = await st();
+check(s.screen === 'summary' && (await p.$eval('#sumTable', (e) => e.textContent)).includes('This game'), 'summary shows today and this game');
+await shot('13-summary-today', true);
+await p.click('#newGameBtn'); await p.waitForTimeout(200); s = await st(); check(!s.carry, 'fresh start drops the carry');
+check(await p.$eval('#carryCard', (e) => e.hidden), 'carry card hidden after a fresh start');
+await p.click('#helpBtn'); await p.waitForTimeout(200);
 check(await p.$eval('#help', (e) => !e.hidden), 'help screen opens');
 await shot('10-help', true);
 await p.click('#helpBack');

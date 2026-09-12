@@ -4,7 +4,7 @@
   const E = window.Engine;
   const KEY = 'goinfor_v2';
   const OLD_KEY = 'goinfor_v1';
-  const APP_VERSION = '1.0.0';
+  const APP_VERSION = '1.1.0';
   const SAVE_EVERY_MS = 5000;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -12,7 +12,8 @@
   const mmss = (sec) => { sec = Math.max(0, Math.round(sec)); const m = Math.floor(sec / 60), s = sec % 60; return m + ':' + (s < 10 ? '0' : '') + s; };
   const mins = (sec) => Math.round(sec / 60) + 'm';
   const SECS_OPTS = [{ label: 'Off', value: 0 }, { label: '30 s', value: 30 }, { label: '1 min', value: 60 }];
-  const SWAP_HINT = 'Tap a kid on the field, then a kid on the bench, to swap by hand.';
+  const SWAP_HINT = 'Drag a kid by the handle to the field or the bench, or tap a kid on the field, then a kid on the bench, to swap.';
+  const ago = (ms) => { const m = Math.round(ms / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; };
   // One icon family (Lucide-style outlines, 2px stroke). Always decorative beside a visible label.
   const ICON_PATHS = {
     menu: '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
@@ -35,6 +36,7 @@
     shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
     away: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m17 8 5 5"/><path d="m22 8-5 5"/>',
     bench: '<path d="M3 10h18"/><path d="M5 10v9"/><path d="M19 10v9"/><path d="M3 15h18"/>',
+    grip: '<circle cx="9" cy="5" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="9" cy="19" r="1.3"/><circle cx="15" cy="5" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="15" cy="19" r="1.3"/>',
     trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
   };
   const icon = (name) => '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + ICON_PATHS[name] + '</svg>';
@@ -203,14 +205,29 @@
       S.players.forEach((p) => pick.appendChild(btn(p.name, '', () => { const max = ruleDraft.type === 'keep' ? 99 : 2; if (ruleDraft.ids.includes(p.id)) ruleDraft.ids = ruleDraft.ids.filter((x) => x !== p.id); else if (ruleDraft.ids.length < max) ruleDraft.ids.push(p.id); renderSetup(); }, { pressed: ruleDraft.ids.includes(p.id) })));
       $('ruleSave').disabled = ruleDraft.type === 'keep' ? ruleDraft.ids.length < ruleDraft.min : ruleDraft.ids.length !== 2;
     }
-    const resume = liveGame();
+    renderCarry();
+    const resume = liveGame(); const cp = E.carryPreview(S, now());
     const foot = $('footInner'); foot.innerHTML = '';
-    foot.appendChild(btn(resume ? 'Back to the game' : 'Start the game', 'primary big', () => {
+    foot.appendChild(btn(resume ? 'Back to the game' : cp ? 'Start game ' + (cp.games + 1) : 'Start the game', 'primary big', () => {
       if (resume) { commit(() => { S.screen = 'game'; }); return; }
       arm(); pickVoice();
       const r = E.startGame(S, now()); if (!r.ok) { alert(r.msg); return; }
       save(); render(); speak('Game on. First swap in ' + Math.round(S.settings.intervalSec / 60) + ' minutes.');
     }, { id: 'startBtn', icon: 'play' }));
+  }
+
+  // The lineup carried over from the last game today, with a switch to start fresh instead.
+  function renderCarry() {
+    const card = $('carryCard'); const cp = S.carry ? E.carryPreview(S, now()) : null;
+    card.hidden = !S.carry || (S.carryOn !== false && !cp);
+    if (card.hidden) return;
+    const names = (ids) => ids.map((id) => esc(E.nameOf(S, id))).join(', ');
+    const on = S.carryOn !== false;
+    $('carryText').innerHTML = on && cp
+      ? '<p>Game ' + cp.games + ' ended ' + ago(cp.ago) + '. The kids who were waiting start next, longest wait first. Today\'s minutes carry over.</p>'
+        + '<p><b>Start with:</b> ' + (names(cp.waiting) || 'nobody yet') + '</p><p><b>Were on at the end:</b> ' + (names(cp.onAtEnd) || 'nobody') + '</p>'
+      : '<p>The last game\'s lineup and minutes are set aside. This game starts from the roster.</p>';
+    seg($('carrySeg'), [{ label: 'Carry on', value: true }, { label: 'Fresh start', value: false }], on, (v) => { S.carryOn = v; save(); renderSetup(); });
   }
 
   // ---------- Game screen ----------
@@ -268,6 +285,8 @@
         btn('Done for today', 'quiet', () => commit(() => E.doneToday(S, a.id)), { icon: 'close' }));
       b.appendChild(row); box.appendChild(b);
     });
+    const over = g.field.length - S.settings.fieldSize;
+    if (over > 0) box.appendChild(banner('warn', '<div class="title">' + g.field.length + ' on the field for ' + S.settings.fieldSize + 'v' + S.settings.fieldSize + '</div><p>Drag ' + (over === 1 ? 'one kid' : over + ' kids') + ' to the bench, or use the swap above.</p>'));
     const v = E.violations(S, g.field, []);
     if (v.length) box.appendChild(banner('warn', '<div class="title">Heads up</div><p>' + esc(v.join('. ')) + '. ' + SWAP_HINT + '</p>'));
     if (ui.sel) box.appendChild(banner('info', '<p>' + esc(E.nameOf(S, ui.sel.id)) + ' selected. Tap who to swap with, or tap ' + esc(E.nameOf(S, ui.sel.id)) + ' again to cancel.</p>'));
@@ -275,7 +294,7 @@
   function playerRow(id, list, view) {
     const g = S.game; const ref = view.move;
     const isOff = ref && ref.offs.includes(id), isOn = ref && ref.ons.includes(id), gk = g.locked.includes(id);
-    const row = document.createElement('div');
+    const row = document.createElement('div'); row.dataset.id = id; row.dataset.list = list;
     row.className = 'prow selectable' + (ui.sel && ui.sel.id === id ? ' selected' : '') + (isOff ? ' next-off' : '') + (isOn ? ' next-on' : '') + (gk ? ' gk' : '');
     let chip = '';
     if (gk) chip = '<span class="chip gk">Goalie, stays</span>';
@@ -294,7 +313,7 @@
     } else {
       acts.append(act('In now', 'in', 'Put ' + E.nameOf(S, id) + ' in right away', () => returnNow(id)), act('Away', 'away', E.nameOf(S, id) + ' wandered off from the bench', () => commit(() => E.outEarly(S, id, true, now()))));
     }
-    row.append(info, acts);
+    row.append(grip(id, list), info, acts);
     row.onclick = () => {
       if (!ui.sel) { ui.sel = { id, list }; render(); return; }
       if (ui.sel.id === id) { ui.sel = null; render(); return; }
@@ -302,6 +321,70 @@
       const a = ui.sel; ui.sel = null; commit(() => E.manualSwap(S, a, { id, list }, now()));
     };
     return row;
+  }
+  // ---------- Drag a kid between the field and the bench ----------
+  // Pointer-based so it works on a phone: the grip has touch-action none, the row is cloned as a ghost, the page auto-scrolls near the edges.
+  const drag = { id: null, from: '', ghost: null, row: null, zone: null, target: null, x: 0, y: 0, moved: false, raf: 0, endedAt: 0 };
+  // The click that follows a mouse drop would land on a freshly rebuilt row and select it. Swallow it.
+  document.addEventListener('click', (e) => { if (now() - drag.endedAt < 400) { e.stopPropagation(); e.preventDefault(); } }, true);
+  function grip(id, list) {
+    const other = list === 'field' ? 'bench' : 'field';
+    const h = btn('', 'grip', null, { title: 'Drag ' + E.nameOf(S, id) + ' to the ' + other, icon: 'grip' });
+    h.addEventListener('pointerdown', (e) => startDrag(e, h, id, list));
+    h.addEventListener('click', (e) => { e.stopPropagation(); if (e.detail === 0) commit(() => E.movePlayer(S, id, other, now())); else if (!drag.moved) toast('Drag ' + E.nameOf(S, id) + ' to the field or the bench'); });
+    return h;
+  }
+  function startDrag(e, h, id, list) {
+    if (drag.id || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    e.preventDefault();
+    const row = h.closest('.prow'); const r = row.getBoundingClientRect();
+    const ghost = row.cloneNode(true); ghost.className = 'prow ghost'; ghost.setAttribute('aria-hidden', 'true');
+    ghost.style.width = r.width + 'px'; ghost.style.left = r.left + 'px'; ghost.style.top = r.top + 'px';
+    Object.assign(drag, { id, from: list, ghost, row, zone: null, target: null, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, moved: false });
+    document.body.appendChild(ghost); row.classList.add('lifted'); document.body.classList.add('dragging');
+    try { h.setPointerCapture(e.pointerId); } catch (err) {}
+    // Listeners live on the document so the drag survives even if pointer capture was refused.
+    const pid = e.pointerId;
+    const move = (ev) => { if (ev.pointerId !== pid) return; drag.x = ev.clientX; drag.y = ev.clientY; if (Math.abs(ev.clientX - drag.x0) + Math.abs(ev.clientY - drag.y0) > 6) drag.moved = true; ev.preventDefault(); };
+    const end = (ev) => {
+      if (ev.pointerId !== pid) return;
+      document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', end); document.removeEventListener('pointercancel', end);
+      if (ev.type === 'pointercancel') drag.moved = false; // the system took the gesture (swipe back, call): put the kid back
+      finishDrag();
+    };
+    document.addEventListener('pointermove', move, { passive: false }); document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
+    drag.raf = requestAnimationFrame(dragFrame);
+  }
+  function dragFrame() {
+    if (!drag.id) return;
+    const g = drag.ghost; g.style.transform = 'translate(' + (drag.x - drag.x0) + 'px,' + (drag.y - drag.y0) + 'px)';
+    // Auto-scroll when the pointer is near the top or the footer.
+    const edge = 90, bottom = window.innerHeight - 120, speed = (d) => Math.min(12, Math.ceil(d / 8));
+    if (drag.moved && drag.y < edge) window.scrollBy(0, -speed(edge - drag.y));
+    else if (drag.moved && drag.y > bottom) window.scrollBy(0, speed(drag.y - bottom));
+    const el = document.elementFromPoint(drag.x, drag.y);
+    const rowEl = el && el.closest('.prow[data-id]'); const zoneEl = el && el.closest('[data-drop]');
+    const target = rowEl && rowEl.dataset.id !== drag.id && rowEl.dataset.list !== drag.from && rowEl.dataset.list !== 'away' && drag.from !== 'away' ? rowEl : null;
+    const zone = zoneEl && zoneEl.dataset.drop !== drag.from ? zoneEl : null;
+    if (drag.target !== target) { if (drag.target) drag.target.classList.remove('drop-target'); if (target) target.classList.add('drop-target'); drag.target = target; }
+    if (drag.zone !== zone) { if (drag.zone) drag.zone.classList.remove('drop-over'); if (zone && !target) zone.classList.add('drop-over'); drag.zone = zone; }
+    if (target && zone) zone.classList.remove('drop-over');
+    drag.raf = requestAnimationFrame(dragFrame);
+  }
+  function finishDrag() {
+    if (!drag.id) return;
+    cancelAnimationFrame(drag.raf);
+    const { id, from, target, zone, moved } = drag;
+    if (drag.ghost) drag.ghost.remove(); if (drag.row) drag.row.classList.remove('lifted');
+    if (target) target.classList.remove('drop-target'); if (zone) zone.classList.remove('drop-over');
+    document.body.classList.remove('dragging');
+    drag.id = null; drag.ghost = null; drag.row = null; drag.target = null; drag.zone = null;
+    if (!moved) return;
+    drag.endedAt = now();
+    ui.sel = null;
+    if (target) { const to = target.dataset.list; commit(() => E.manualSwap(S, { id, list: from }, { id: target.dataset.id, list: to }, now())); toast(E.nameOf(S, id) + ' in for ' + E.nameOf(S, target.dataset.id)); }
+    else if (zone) { const to = zone.dataset.drop; commit(() => E.movePlayer(S, id, to, now())); toast(E.nameOf(S, id) + (to === 'field' ? ' is on the field' : ' is on the bench')); }
+    else render();
   }
   function renderGame(view) {
     const g = S.game; ui.els.clear();
@@ -315,13 +398,13 @@
     $('benchCount').textContent = '(' + g.bench.length + ')';
     const aw = $('awayList'); aw.innerHTML = ''; $('awayWrap').hidden = g.away.length === 0;
     g.away.forEach((a) => {
-      const row = document.createElement('div'); row.className = 'prow';
+      const row = document.createElement('div'); row.className = 'prow'; row.dataset.id = a.id; row.dataset.list = 'away';
       const info = document.createElement('div');
       const status = a.status === 'done' ? '<span class="chip away">Done today</span>' : '<span class="chip away">Check <span data-check="' + a.id + '"></span></span>';
       info.innerHTML = '<div class="pname">' + esc(E.nameOf(S, a.id)) + status + '</div><div class="pmeta num">' + mins(E.played(S, a.id)) + ' played · off for <span data-off="' + a.id + '"></span></div>';
       const acts = document.createElement('div'); acts.className = 'pacts';
       acts.append(btn('In now', 'sm primary', () => returnNow(a.id), { icon: 'in' }), btn('Bench', 'sm', () => commit(() => E.toBench(S, a.id)), { icon: 'bench' }));
-      row.append(info, acts); aw.appendChild(row);
+      row.append(grip(a.id, 'away'), info, acts); aw.appendChild(row);
     });
     const foot = $('footInner');
     if (g.pending) foot.appendChild(doneBtn());
@@ -355,7 +438,7 @@
       btn('Pocket screen', 'quiet', () => { closeSheet(); openPocket(); }, { icon: 'pocket' }),
       btn('Roster & rules', 'quiet', () => { ui.sheet = false; commit(() => { S.screen = 'setup'; }); }, { icon: 'roster' }),
       btn('Help & setup', 'quiet', () => { ui.sheet = false; commit(() => { S.screen = 'help'; }); }, { icon: 'help' }),
-      btn('End game', 'danger', () => { if (!confirm('End the game and show minutes?')) return; ui.sheet = false; commit(() => E.endGame(S)); }, { icon: 'flag' }),
+      btn('End game', 'danger', () => { if (!confirm('End the game and show minutes?')) return; ui.sheet = false; commit(() => E.endGame(S, now())); }, { icon: 'flag' }),
       btn('Close', 'primary', closeSheet, { icon: 'close' }));
     sh.appendChild(panel); sh.addEventListener('click', (e) => { if (e.target === sh) closeSheet(); }); ov.appendChild(sh);
     const first = panel.querySelector('button:not([disabled])'); if (first) first.focus();
@@ -384,12 +467,16 @@
     const g = S.game; const ids = Object.keys(g.played).sort((a, b) => E.played(S, b) - E.played(S, a));
     const max = Math.max(1, g.total);
     const min = ids.length ? Math.min.apply(null, ids.map((id) => E.played(S, id))) : 0;
-    $('sumLine').textContent = ids.length + ' kids played. Everyone got at least ' + mins(min) + '. Game clock ran ' + mins(g.total) + '.';
-    $('sumTable').innerHTML = '<tr><th>Kid</th><th>Played</th><th style="width:40%"></th></tr>' + ids.map((id) => '<tr><td class="name">' + esc(E.nameOf(S, id)) + '</td><td class="num">' + mins(E.played(S, id)) + '</td><td><div class="bar-track"><div class="bar-fill" style="width:' + Math.round(100 * E.played(S, id) / max) + '%"></div></div></td></tr>').join('');
+    const multi = (g.games || 1) > 1; const before = g.playedBefore || {};
+    $('sumLine').textContent = ids.length + ' kids played. Everyone got at least ' + mins(min) + (multi ? ' today over ' + g.games + ' games' : '') + '. Game clock ran ' + mins(g.total) + '.';
+    $('sumTable').innerHTML = '<tr><th>Kid</th><th>' + (multi ? 'Today' : 'Played') + '</th>' + (multi ? '<th>This game</th>' : '') + '<th style="width:' + (multi ? 30 : 40) + '%"></th></tr>'
+      + ids.map((id) => '<tr><td class="name">' + esc(E.nameOf(S, id)) + '</td><td class="num">' + mins(E.played(S, id)) + '</td>' + (multi ? '<td class="num">' + mins(E.played(S, id) - (before[id] || 0)) + '</td>' : '')
+        + '<td><div class="bar-track"><div class="bar-fill" style="width:' + Math.round(100 * E.played(S, id) / max) + '%"></div></div></td></tr>').join('');
   }
   function renderHelp() { const off = 'serviceWorker' in navigator && navigator.serviceWorker.controller; $('verLine').textContent = 'Go In For ' + APP_VERSION + (off ? ' · saved on this phone, works offline' : ' · open once with a signal to save it for offline use'); }
 
   function render(view) {
+    if (drag.id) { drag.moved = false; finishDrag(); } // a redraw mid-drag (tab switch, dialog) drops the kid back where they were
     ['setup', 'game', 'summary', 'help'].forEach((id) => { $(id).hidden = S.screen !== id; });
     $('footInner').innerHTML = '';
     if (!ui.sheet && !ui.pocket) $('overlay').innerHTML = '';
@@ -407,7 +494,7 @@
     announce(ev);
     if (ev.length || (g.running && now() - ui.lastSave >= SAVE_EVERY_MS)) save();
     if (S.screen !== 'game') { render(); return; }
-    if (ui.sheet) { renderTimers(); return; }
+    if (ui.sheet || drag.id) { renderTimers(); return; }
     const view = buildView();
     if (view.key !== ui.viewKey) render(view); else renderTimers();
   }
@@ -454,9 +541,10 @@
     $('helpBtn').onclick = () => commit(() => { S.screen = 'help'; });
     $('helpBack').onclick = () => commit(() => { S.screen = homeScreen(); });
     $('playBtn').onclick = togglePlay;
-    $('newGameBtn').onclick = () => commit(() => E.newGame(S));
+    $('nextGameBtn').onclick = () => commit(() => E.newGame(S, true));
+    $('newGameBtn').onclick = () => commit(() => E.newGame(S, false));
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (ui.sheet) closeSheet(); else if (ui.pocket) closePocket(); } });
-    [['addBtn', 'plus'], ['lateBtn', 'plus'], ['pasteBtn', 'link'], ['copyLink', 'link'], ['helpBtn', 'help'], ['helpBack', 'undo'], ['newGameBtn', 'play'], ['ruleAdd', 'plus'], ['testVoice', 'speak']].forEach(([id, ic]) => { const b = $(id); if (b) b.innerHTML = icon(ic) + '<span>' + b.textContent.trim().replace(/^\+\s*/, '') + '</span>'; });
+    [['addBtn', 'plus'], ['lateBtn', 'plus'], ['pasteBtn', 'link'], ['copyLink', 'link'], ['helpBtn', 'help'], ['helpBack', 'undo'], ['nextGameBtn', 'play'], ['newGameBtn', 'undo'], ['ruleAdd', 'plus'], ['testVoice', 'speak']].forEach(([id, ic]) => { const b = $(id); if (b) b.innerHTML = icon(ic) + '<span>' + b.textContent.trim().replace(/^\+\s*/, '') + '</span>'; });
     document.addEventListener('pointerdown', arm, { passive: true });
     document.addEventListener('keydown', arm);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { tick(); render(); } else save(); });

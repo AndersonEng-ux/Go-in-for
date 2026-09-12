@@ -12,6 +12,7 @@
   const RULE_TYPES = ['apart', 'notOffTogether', 'keep'];
   const MAX_PLAYERS = 30, MAX_RULES = 20, MAX_NAME = 40;
   const cleanName = (raw) => (typeof raw === 'string' ? raw.replace(/\s+/g, ' ').trim().slice(0, MAX_NAME) : '');
+  const CARRY_TTL_MS = 12 * 3600 * 1000; // a carried-over lineup is for the next game today, not next week
   const LIMITS = { fieldSize: [4, 7], subsPer: [1, 3], intervalSec: [60, 600], periods: [1, 4], periodSec: [300, 2700], checkBackSec: [60, 600], warnSec: [0, 60], repeatSec: [0, 60] };
 
   // ---------- Defaults and migration ----------
@@ -60,9 +61,11 @@
     S.rules = S.rules.filter((r) => r && RULE_TYPES.includes(r.type) && Array.isArray(r.ids) && typeof r.id === 'string')
       .map((r) => ({ id: r.id, type: r.type, min: r.type === 'keep' ? cleanMin(r.min, r.ids.length) : undefined, ids: r.ids.filter((id) => known.has(id)) }))
       .filter((r) => r.ids.length >= (r.type === 'keep' ? 1 : 2)).slice(0, MAX_RULES);
+    const isArr = (v) => Array.isArray(v);
+    const ids = (v) => (isArr(v) ? v.filter((id) => known.has(id)) : []);
+    const secMap = (m) => { const o = {}; if (m && typeof m === 'object') Object.keys(m).forEach((id) => { if (known.has(id) && Number.isFinite(Number(m[id]))) o[id] = Math.max(0, Number(m[id])); }); return o; };
     if (S.game) {
-      const g = S.game; const isArr = (v) => Array.isArray(v);
-      const ids = (v) => (isArr(v) ? v.filter((id) => known.has(id)) : []);
+      const g = S.game;
       if (!isArr(g.field) || !isArr(g.bench)) S.game = null;
       else {
         g.field = ids(g.field); g.bench = ids(g.bench); g.locked = ids(g.locked);
@@ -70,9 +73,15 @@
         g.history = isArr(g.history) ? g.history : [];
         ['played', 'onSince', 'offSince'].forEach((k) => { g[k] = g[k] && typeof g[k] === 'object' ? g[k] : {}; });
         ['t', 'total', 'subT', 'period'].forEach((k) => { g[k] = Number.isFinite(Number(g[k])) ? Number(g[k]) : (k === 'period' ? 1 : 0); });
+        g.games = Math.max(1, Math.round(Number(g.games)) || 1); g.playedBefore = secMap(g.playedBefore);
         g.running = false; g.lastTick = Date.now();
       }
     }
+    const c = S.carry;
+    S.carry = c && typeof c === 'object' && Number.isFinite(Number(c.at)) && c.played && typeof c.played === 'object'
+      ? { at: Math.min(Number(c.at), Date.now()), games: Math.min(99, Math.max(1, Math.round(Number(c.games)) || 1)), played: secMap(c.played), rest: secMap(c.rest), stint: secMap(c.stint), field: ids(c.field), waiting: ids(c.waiting) }
+      : null;
+    S.carryOn = S.carryOn !== false;
     if (S.game === null || !S.game) { if (S.screen === 'game' || S.screen === 'summary') S.screen = 'setup'; }
     S.v = STATE_VERSION;
     return S;
@@ -188,7 +197,10 @@
   }
   // The next timed swap, with a note explaining any compromise.
   function rotationPlan(S) {
-    const g = S.game; const k = Math.min(S.settings.subsPer, g.bench.length, g.field.length);
+    const g = S.game;
+    const over = g.field.length - S.settings.fieldSize; // too many on (after a drag): take the extras off without bringing anyone on
+    if (over > 0) { const p = plan(S, { on: 0, off: over, shrink: true }); if (p) { p.note = 'Too many on the field.'; return p; } }
+    const k = Math.min(S.settings.subsPer, g.bench.length, g.field.length);
     if (k <= 0) return null;
     const short = S.settings.fieldSize - g.field.length; // playing short: bring on extra without taking off
     if (short > 0) { const p = plan(S, { on: Math.min(g.bench.length, short), off: 0, shrink: true }); if (p) { p.note = ''; return p; } }
@@ -239,23 +251,48 @@
     }
     if (!g.pending && g.subT <= 0 && !g.breakPending) offerRotation(S, '', now);
   }
+  // ---------- Carrying a lineup from one game to the next ----------
+  // The carry-over from the last game, if the coach wants it and it is from today.
+  const usableCarry = (S, now) => (S.carry && S.carryOn !== false && now - S.carry.at < CARRY_TTL_MS ? S.carry : null);
+  // Who is due to start the next game: longest rest first, then fewest minutes; kids who were on at the end go last. New kids first.
+  const carryScore = (c, id) => (c.played[id] == null ? 1e9 : (c.rest[id] || 0) - 2 * c.played[id] - (c.stint[id] || 0));
+  // For the setup screen: the order the next game will start in, among the kids who are here.
+  function carryPreview(S, now) {
+    const c = usableCarry(S, now); if (!c) return null;
+    const here = S.players.filter((p) => p.here).map((p) => p.id).sort((a, b) => carryScore(c, b) - carryScore(c, a));
+    return { games: c.games, ago: now - c.at, waiting: here.filter((id) => !c.field.includes(id)), onAtEnd: here.filter((id) => c.field.includes(id)) };
+  }
   function startGame(S, now) {
-    const here = S.players.filter((p) => p.here).map((p) => p.id);
+    const carry = usableCarry(S, now);
+    let here = S.players.filter((p) => p.here).map((p) => p.id);
     const f = S.settings.fieldSize;
     if (here.length < f) return { ok: false, msg: 'You need at least ' + f + ' kids here for ' + f + 'v' + f + '.' };
+    if (carry) here = here.slice().sort((a, b) => carryScore(carry, b) - carryScore(carry, a));
     S.game = { running: true, t: 0, total: 0, period: 1, subT: S.settings.intervalSec, field: [], bench: here, away: [], locked: [],
-      played: {}, onSince: {}, offSince: {}, pending: null, history: [], breakPending: false, lastTick: now, ended: false, warned: false };
+      played: {}, onSince: {}, offSince: {}, pending: null, history: [], breakPending: false, lastTick: now, ended: false, warned: false,
+      games: carry ? carry.games + 1 : 1, playedBefore: carry ? Object.assign({}, carry.played) : {} };
     const g = S.game;
-    // Starting lineup: first legal group of `f`, preferring roster order.
+    // Starting lineup: first legal group of `f`, preferring roster order (or, carrying on, the kids who were waiting longest).
     let pick = null; const rules = liveRules(S);
     eachCombo(here, f, (c) => { if (checkLineup(S, rules, new Set(c), []).length === 0) { pick = c; return true; } return false; });
     g.field = pick || here.slice(0, f);
     g.bench = here.filter((id) => !g.field.includes(id));
-    here.forEach((id) => { g.played[id] = 0; });
-    g.field.forEach((id) => { g.onSince[id] = 0; });
-    g.bench.forEach((id) => { g.offSince[id] = 0; });
+    // Carried minutes count toward fairness. Carried rest and stint are stored as time before this clock started.
+    here.forEach((id) => { g.played[id] = carry ? (carry.played[id] || 0) : 0; });
+    g.field.forEach((id) => { g.onSince[id] = carry ? -(carry.stint[id] || 0) : 0; });
+    g.bench.forEach((id) => { g.offSince[id] = carry ? -(carry.rest[id] || 0) : 0; });
+    S.carry = null;
     S.screen = 'game';
     return { ok: true };
+  }
+  // The game is over: remember who was on, who was waiting (longest rest first), and the minutes, for the next game.
+  function finishGame(S, now) {
+    const g = S.game; g.running = false; g.ended = true; S.screen = 'summary';
+    const waiting = g.bench.concat(g.away.map((a) => a.id)).sort((a, b) => rest(S, b) - rest(S, a));
+    const restMap = {}, stintMap = {};
+    waiting.forEach((id) => { restMap[id] = rest(S, id); }); g.field.forEach((id) => { stintMap[id] = stint(S, id); });
+    S.carry = { at: now, games: g.games || 1, played: Object.assign({}, g.played), rest: restMap, stint: stintMap, field: g.field.slice(), waiting };
+    S.carryOn = true;
   }
   function execute(S, now) {
     const g = S.game; const p = g.pending; if (!p) return false;
@@ -311,6 +348,18 @@
     g.pending = null;
     settle(S, now);
   }
+  // Coach fixes the lineup by hand (drag): put a kid on the field or the bench, no pairing needed. The plan re-forms around it.
+  function movePlayer(S, id, to, now) {
+    const g = S.game; if (to !== 'field' && to !== 'bench') return false;
+    if (!g.field.includes(id) && !g.bench.includes(id) && !g.away.some((a) => a.id === id)) return false;
+    if ((to === 'field' ? g.field : g.bench).includes(id)) return false;
+    snapshot(S); detach(g, id);
+    if (to === 'field') { g.field.push(id); g.onSince[id] = g.total; } else { g.bench.push(id); g.offSince[id] = g.total; }
+    if (g.played[id] == null) g.played[id] = 0;
+    g.pending = null;
+    settle(S, now);
+    return true;
+  }
   function addPlayer(S, name) {
     name = cleanName(name); if (!name) return null;
     let p = findByName(S, name);
@@ -320,7 +369,7 @@
   function addLate(S, name) {
     const g = S.game; const p = addPlayer(S, name); if (!p) return null;
     if (g.field.includes(p.id) || g.bench.includes(p.id)) return p;
-    snapshot(S); detach(g, p.id); g.bench.push(p.id); if (g.played[p.id] == null) g.played[p.id] = 0; g.offSince[p.id] = g.total;
+    snapshot(S); detach(g, p.id); g.bench.push(p.id); if (g.played[p.id] == null) g.played[p.id] = (g.playedBefore && g.playedBefore[p.id]) || 0; g.offSince[p.id] = g.total;
     return p;
   }
   function removePlayer(S, id) {
@@ -341,13 +390,14 @@
   function togglePlay(S, now) { const g = S.game; if (g.breakPending || g.ended) return; g.running = !g.running; g.lastTick = now; }
   function endPeriod(S, now) {
     const g = S.game; g.running = false;
-    if (g.period >= S.settings.periods) { g.ended = true; S.screen = 'summary'; return 'gameOver'; }
+    if (g.period >= S.settings.periods) { finishGame(S, now); return 'gameOver'; }
     g.breakPending = true; g.pending = null; offerRotation(S, 'Swap at the break.', now);
     return 'break';
   }
   function nextPeriod(S, now) { const g = S.game; g.period++; g.t = 0; g.breakPending = false; g.running = true; g.lastTick = now; if (g.subT <= 0) resetSubTimer(S); }
-  function endGame(S) { S.game.running = false; S.game.ended = true; S.screen = 'summary'; }
-  function newGame(S) { S.game = null; S.screen = 'setup'; }
+  function endGame(S, now) { finishGame(S, now); }
+  // keep = carry the lineup and minutes into the next game; otherwise start the next game fresh.
+  function newGame(S, keep) { S.game = null; S.screen = 'setup'; if (!keep) S.carry = null; }
 
   // One second of game clock. Returns events for the UI to announce.
   function step(S, now) {
@@ -422,6 +472,6 @@
 
   return { STATE_VERSION, LIMITS, MAX_PLAYERS, MAX_RULES, defaults, migrate, findByName, nameOf, activeIds, violations, played, stint, rest, isFresh, freshMatters,
     pinnedByRule, plan, rotationPlan, planSpeech, undo, startGame, execute, dismissPending, subNow, toggleLock, outEarly, returnNow, toBench,
-    doneToday, checkLater, manualSwap, addPlayer, addLate, removePlayer, addRule, togglePlay, nextPeriod, endGame, newGame, tick, markSpoken,
+    doneToday, checkLater, manualSwap, movePlayer, usableCarry, carryPreview, addPlayer, addLate, removePlayer, addRule, togglePlay, nextPeriod, endGame, newGame, tick, markSpoken,
     importRoster, encodeRoster, decodeRoster };
 });

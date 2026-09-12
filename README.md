@@ -24,6 +24,8 @@ Load a saved roster on any phone with a **roster link** (Roster link card on the
 - **Pocket screen.** Only the clock and the call, unlocks on a one-second hold. Pair it with iOS Guided Access to lock the phone to the app.
 - **Sunlight palette.** White surfaces, near-black type, every text pair at 7:1 contrast or better. Dark theme for night games.
 - Attendance, late arrivals, goalie lock, tap-to-swap by hand, undo, halves or quarters, and a final minutes table.
+- Lost track of who switched? Drag a kid by the handle on their row to the field or the bench so the app matches what is really out there. Drop a kid on another kid to swap them. Too many on, and the plan says who comes off.
+- Back-to-back games: end the game, then "Next game, carry on". The kids who were waiting start the next game, longest wait first, and the minutes carry over so the day stays fair (good for 12 hours).
 
 ## Known limits
 

@@ -321,3 +321,105 @@ test('security fixes: malformed saved state does not crash migrate', () => {
   const S = E.migrate({ players: [{ id: 'p1', name: 'A' }], seq: 'abc', rules: [{ id: 'r', type: 'keep', ids: ['p1', 'zzz'] }], game: { field: ['p1', 'nope'], bench: 'x' } });
   assert.equal(S.seq, 100); assert.deepEqual(S.rules[0].ids, ['p1']); assert.equal(S.game, null);
 });
+
+test('drag: move a kid onto the field with no pairing, then the plan takes the extra one off', () => {
+  const t = team(COACH.names, COACH.rules);
+  E.startGame(t.S, NOW); const g = t.S.game;
+  const b = g.bench[0]; const hist = g.history.length;
+  assert.equal(E.movePlayer(t.S, b, 'field', NOW), true);
+  assert.equal(g.field.length, 7); assert.equal(g.bench.length, 4);
+  assert.equal(g.history.length, hist + 1, 'undo covers a drag');
+  const p = E.rotationPlan(t.S);
+  assert.equal(p.ons.length, 0); assert.equal(p.offs.length, 1); assert.match(p.note, /Too many/);
+  assert.deepEqual(E.violations(t.S, g.field.filter((id) => !p.offs.includes(id)), p.offs), []);
+  assert.equal(E.movePlayer(t.S, b, 'field', NOW), false, 'already there');
+  assert.equal(E.movePlayer(t.S, 'nope', 'bench', NOW), false);
+  const f = g.field[0];
+  assert.equal(E.movePlayer(t.S, f, 'bench', NOW), true);
+  assert.equal(g.field.length, 6); assert.equal(E.rest(t.S, f), 0);
+  assert.equal(E.undo(t.S), true); assert.equal(g.field.length, 7);
+});
+
+test('drag: a move clears the pending call; a due swap is offered again around the new lineup', () => {
+  const t = team(COACH.names, COACH.rules);
+  E.startGame(t.S, NOW); const g = t.S.game;
+  g.subT = 1; E.tick(t.S, NOW + 1000);
+  assert.equal(g.pending.type, 'rotation');
+  const on = g.pending.ons[0];
+  E.movePlayer(t.S, on, 'field', NOW + 1000);
+  assert.ok(g.pending && g.pending.type === 'rotation', 'still due, so offered again');
+  assert.ok(!g.pending.ons.includes(on));
+  // A kid off to the side can be dragged straight onto the field.
+  const away = g.field[0]; E.outEarly(t.S, away, false, NOW + 1000);
+  assert.ok(g.away.some((a) => a.id === away));
+  E.movePlayer(t.S, away, 'field', NOW + 1000);
+  assert.ok(g.field.includes(away) && !g.away.some((a) => a.id === away));
+});
+
+test('carry on: the next game starts with the kids who were waiting and keeps the minutes', () => {
+  const t = team(COACH.names, COACH.rules, { intervalSec: 120, periodSec: 600, periods: 2 });
+  E.startGame(t.S, NOW); let g = t.S.game;
+  E.tick(t.S, NOW + 120 * 1000); E.execute(t.S, NOW + 120 * 1000);
+  E.tick(t.S, NOW + 240 * 1000); E.execute(t.S, NOW + 240 * 1000);
+  E.tick(t.S, NOW + 300 * 1000);
+  const endField = g.field.slice(), endBench = g.bench.slice(), endPlayed = Object.assign({}, g.played);
+  E.endGame(t.S, NOW + 300 * 1000);
+  assert.equal(t.S.screen, 'summary'); assert.ok(t.S.carry);
+  assert.deepEqual(t.S.carry.field, endField);
+  assert.equal(t.S.carry.waiting.length, 5);
+  assert.ok(E.rest(t.S, t.S.carry.waiting[0]) >= E.rest(t.S, t.S.carry.waiting[4]), 'longest rest first');
+  E.newGame(t.S, true);
+  assert.equal(t.S.screen, 'setup'); assert.ok(t.S.carry, 'carry kept');
+  const cp = E.carryPreview(t.S, NOW + 600 * 1000);
+  assert.equal(cp.games, 1); assert.deepEqual(cp.onAtEnd.sort(), endField.slice().sort());
+  assert.equal(E.startGame(t.S, NOW + 600 * 1000).ok, true); g = t.S.game;
+  assert.equal(g.games, 2); assert.equal(t.S.carry, null, 'carry consumed');
+  // The waiting kids start, except where a rule says no (Knox and Lydon apart), plus a legal pick from the kids who were on.
+  assert.ok(endBench.filter((id) => g.field.includes(id)).length >= 4, 'the waiting kids start');
+  assert.deepEqual(E.violations(t.S, g.field, []), []);
+  assert.deepEqual(g.played, endPlayed, 'minutes carried');
+  assert.deepEqual(g.playedBefore, endPlayed);
+  const carriedOn = g.field.find((id) => endField.includes(id));
+  assert.ok(E.stint(t.S, carriedOn) > 0, 'a kid who stayed on is not fresh');
+  assert.ok(!E.isFresh(t.S, carriedOn));
+  endField.filter((id) => g.bench.includes(id)).forEach((id) => assert.equal(E.rest(t.S, id), 0));
+  const first = E.rotationPlan(t.S);
+  assert.ok(first.offs.includes(carriedOn), 'the kid who stayed on comes off first');
+  // Fresh start drops the carry; an old carry is ignored and cleared.
+  E.endGame(t.S, NOW + 900 * 1000); E.newGame(t.S, false); assert.equal(t.S.carry, null);
+  E.startGame(t.S, NOW); E.endGame(t.S, NOW + 100 * 1000); E.newGame(t.S, true);
+  assert.equal(E.carryPreview(t.S, NOW + 13 * 3600 * 1000), null, 'expired after 12 hours');
+  E.startGame(t.S, NOW + 13 * 3600 * 1000);
+  assert.equal(t.S.game.games, 1); assert.equal(t.S.carry, null);
+  // Fresh-start switch on the setup screen
+  E.endGame(t.S, NOW + 14 * 3600 * 1000); E.newGame(t.S, true); t.S.carryOn = false;
+  assert.equal(E.carryPreview(t.S, NOW + 14 * 3600 * 1000), null);
+  E.startGame(t.S, NOW + 14 * 3600 * 1000); assert.equal(t.S.game.games, 1);
+});
+
+test('carry on: with no rules every waiting kid starts the next game', () => {
+  const t = team(COACH.names, []);
+  E.startGame(t.S, NOW); E.tick(t.S, NOW + 200 * 1000);
+  const endBench = t.S.game.bench.slice();
+  E.endGame(t.S, NOW + 200 * 1000); E.newGame(t.S, true); E.startGame(t.S, NOW + 300 * 1000);
+  endBench.forEach((id) => assert.ok(t.S.game.field.includes(id), E.nameOf(t.S, id) + ' was waiting and starts'));
+});
+
+test('carry on: a late kid who never played today starts first, and a garbage carry is dropped by migrate', () => {
+  const t = team(COACH.names, COACH.rules);
+  t.S.players.find((p) => p.name === 'Miles').here = false;
+  E.startGame(t.S, NOW); E.tick(t.S, NOW + 200 * 1000); E.endGame(t.S, NOW + 200 * 1000); E.newGame(t.S, true);
+  t.S.players.find((p) => p.name === 'Miles').here = true;
+  const cp = E.carryPreview(t.S, NOW + 300 * 1000);
+  assert.equal(cp.waiting[0], t.id('Miles'));
+  E.startGame(t.S, NOW + 300 * 1000);
+  assert.ok(t.S.game.field.includes(t.id('Miles')));
+  assert.equal(E.played(t.S, t.id('Miles')), 0);
+  const S = E.migrate({ players: [{ id: 'p1', name: 'A' }], carry: { at: 'x', played: {} } });
+  assert.equal(S.carry, null);
+  const S2 = E.migrate({ players: [{ id: 'p1', name: 'A' }], carry: { at: 5, played: { p1: '30', zz: 9 }, rest: null, field: ['p1', 'zz'] } });
+  assert.deepEqual(S2.carry, { at: 5, games: 1, played: { p1: 30 }, rest: {}, stint: {}, field: ['p1'], waiting: [] });
+  assert.equal(JSON.parse(JSON.stringify(S2)).carryOn, true);
+  const S3 = E.migrate({ players: [{ id: 'p1', name: 'A' }], carry: { at: Date.now() + 1e12, games: Infinity, played: {} } });
+  assert.ok(S3.carry.at <= Date.now()); assert.equal(S3.carry.games, 99);
+});
