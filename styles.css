@@ -144,7 +144,7 @@ input[type="text"] { font: inherit; font-size: 19px; padding: 12px 14px; border:
 .attend { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
 .attend .btn.here { justify-content: flex-start; font-family: var(--display); font-size: 26px; min-height: 56px; border: 2px solid var(--line); background: var(--surface); }
 .attend .btn.here::before { content: ""; width: 14px; height: 14px; border-radius: 50%; background: var(--line); flex: none; }
-.attend .btn.here[aria-pressed="true"] { background: var(--pitch-soft); border-color: var(--pitch); }
+.attend .btn.here[aria-pressed="true"] { background: var(--pitch-soft); border-color: var(--pitch); color: var(--ink); }
 .attend .btn.here[aria-pressed="true"]::before { background: var(--pitch); }
 .calc { font-size: 17px; }
 .calc b { font-family: var(--display); font-size: 24px; }

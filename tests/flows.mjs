@@ -25,6 +25,10 @@ check(await p.title() === 'Go In For', 'page title');
 check(await p.$eval('#setup', (e) => !e.hidden), 'setup screen shows first');
 check(await noHScroll(p), 'no horizontal scroll on setup');
 await shot('01-setup-light', true);
+// Toggling attendance and settings must not duplicate the footer button
+await (await p.$$('#attendList .btn.here'))[0].click(); await (await p.$$('#segSubs .btn'))[0].click(); await (await p.$$('#attendList .btn.here'))[0].click();
+check((await p.$$('#footInner .btn')).length === 1, 'one Start button after several setup taps');
+check(await p.$eval('#attendList .btn.here[aria-pressed="true"]', (b) => { const c = getComputedStyle(b); return c.color !== c.backgroundColor; }), 'present kid name is readable');
 
 // Load the coach roster through a roster link and shorten the clock for the test.
 const enc = await p.evaluate((coach) => { const E = window.__goinfor.Engine; const S = E.defaults();

@@ -178,7 +178,8 @@
       $('ruleSave').disabled = ruleDraft.type === 'keep' ? ruleDraft.ids.length < ruleDraft.min : ruleDraft.ids.length !== 2;
     }
     const resume = liveGame();
-    $('footInner').appendChild(btn(resume ? 'Back to the game' : 'Start the game', 'primary big', () => {
+    const foot = $('footInner'); foot.innerHTML = '';
+    foot.appendChild(btn(resume ? 'Back to the game' : 'Start the game', 'primary big', () => {
       if (resume) { commit(() => { S.screen = 'game'; }); return; }
       arm(); pickVoice();
       const r = E.startGame(S, now()); if (!r.ok) { alert(r.msg); return; }
