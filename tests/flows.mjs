@@ -57,7 +57,7 @@ check((await p.$eval('#ruleFair', (e) => e.textContent)).includes('Even time che
 await p.click('#ruleSave'); await p.waitForTimeout(200); s = await st();
 check((await p.$eval('#rulesFair', (e) => e.textContent)).includes("today's kids"), 'the rules card shows the minutes range for today');
 check(s.rules.length === 5 && s.rules[4].type === 'limit' && s.rules[4].max === 2 && s.rules[4].ids.length === 4, 'limit rule saved from the setup screen');
-check((await p.$eval('#ruleList', (e) => e.textContent)).includes('Never more than 2'), 'limit rule listed');
+check((await p.$eval('#ruleList', (e) => e.textContent)).includes('At most 2 on'), 'limit rule listed');
 // Start the game
 await p.click('#startBtn'); await p.waitForTimeout(400);
 s = await st();

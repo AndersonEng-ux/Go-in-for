@@ -77,7 +77,8 @@
       <p class="calc" id="rulesFair" aria-live="polite"></p>
       <div id="ruleList" class="list"></div>
       <div id="ruleForm" class="list" hidden>
-        <div class="seg" id="ruleKind"></div>
+        <h3>New rule</h3>
+        <div class="kinds" id="ruleKind"></div>
         <p class="muted" id="ruleHint"></p>
         <div id="ruleMinWrap" hidden><div class="seg" id="ruleMin"></div></div>
         <div class="pick" id="rulePick"></div>
@@ -114,9 +115,9 @@
 
   <!-- GAME -->
   <section id="game" class="screen game" hidden>
-    <div class="bar">
-      <div class="clock num"><span id="clock">0:00</span><small id="periodLbl">Q1 of 4</small></div>
-      <button class="btn primary" id="playBtn" type="button" style="min-width:96px">Pause</button>
+    <div class="bar stats">
+      <div class="stat"><span class="lab" id="periodLbl">Half 1</span><span class="val num" id="clock">0:00</span></div>
+      <div class="stat"><span class="lab">Next swap</span><span class="val num" id="subTimerTop">4:00</span></div>
     </div>
 
     <div id="banners" class="list"></div>
@@ -137,7 +138,6 @@
       </div>
     </div>
 
-    <p class="muted hint">Tap a kid for Sub, Goalie, Left, or Pick a swap. Drag by the handle to move a kid. Lost track? Who's on? below. Hold Menu for undo, pocket screen, roster, and end game.</p>
   </section>
 
   <!-- SUMMARY -->
@@ -188,6 +188,7 @@
       <h3>During the game</h3>
       <ul>
         <li>One minute before a swap it says who is coming. When the timer hits, it says it again and buzzes.</li>
+        <li>On the game screen, tap a kid for Sub, Goalie, Left, or Pick a swap. Drag a kid by the handle to move them. Hold Menu for undo, pocket screen, roster, and end game.</li>
         <li>Tap <b>Done</b> once the kids have moved. It repeats the call every so often until you do. Tapped by mistake? Undo sits on the message for a few seconds.</li>
         <li>A kid shows up late: tap their name under <b>Not here yet</b>. They join the bench and every rule about them is live again. Only use Remove (under Edit team) to take a kid off the team for good.</li>
         <li>A kid walks off: tap <b>Left</b> on their row. It names the next kid to send in and checks back with you after a few minutes.</li>

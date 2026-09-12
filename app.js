@@ -4,7 +4,7 @@
   const E = window.Engine;
   const KEY = 'goinfor_v2';
   const OLD_KEY = 'goinfor_v1';
-  const APP_VERSION = '1.4.0';
+  const APP_VERSION = '1.5.0';
   const SAVE_EVERY_MS = 5000;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -164,12 +164,12 @@
     el.append(dn, v, up);
   }
   const RULE_TEXT = {
-    apart: { kind: 'Not on the field together', hint: 'Pick two kids who should never be on the field at the same time.' },
-    notOffTogether: { kind: 'Never come off at the same time', hint: 'Pick two kids who should never be swapped off in the same move.' },
+    apart: { kind: 'Never on the field together', hint: 'Pick two kids who should never be on the field at the same time.' },
+    notOffTogether: { kind: 'Never come off together', hint: 'Pick two kids who should never be swapped off in the same move.' },
     keep: { kind: 'Always keep some of a group on', hint: 'Pick the group, like your defenders. The plan never lets them all come off at once.' },
     limit: { kind: 'Never too many of a group on', hint: 'Pick the group and how many can be on at once. Good for kids who need a stronger teammate beside them.' },
   };
-  const ruleKind = (r) => (r.type === 'keep' ? 'Always keep at least ' + (r.min || 1) + ' on' : r.type === 'limit' ? 'Never more than ' + (r.max || 1) + ' on at once' : RULE_TEXT[r.type].kind);
+  const ruleKind = (r) => (r.type === 'keep' ? 'At least ' + (r.min || 1) + ' on' : r.type === 'limit' ? 'At most ' + (r.max || 1) + ' on' : r.type === 'apart' ? 'Never on together' : 'Never off together');
 
   // ---------- Fairness check (plays today's game in memory) ----------
   const fairCache = new Map();
@@ -231,7 +231,7 @@
       const cost = fAll && fW ? fAll.spread - fW.spread : 0;
       const costLine = cost >= 60 ? '<div class="cost">Costs ' + mins(cost) + ' of even time today</div>' : '';
       const txt = document.createElement('div'); txt.innerHTML = '<div class="kind">' + esc(ruleKind(r)) + '</div><div class="who">' + esc(r.ids.map((id) => E.nameOf(S, id)).join(r.type === 'keep' || r.type === 'limit' ? ', ' : ' + ')) + '</div>' + costLine;
-      row.append(txt, btn('Remove', 'sm quiet', () => { S.rules = S.rules.filter((x) => x.id !== r.id); save(); renderSetup(); toast('Rule removed'); }, { title: 'Remove rule: ' + ruleKind(r), icon: 'trash' }));
+      row.append(txt, btn('', 'sm quiet iconOnly', () => { S.rules = S.rules.filter((x) => x.id !== r.id); save(); renderSetup(); toast('Rule removed'); }, { title: 'Remove rule: ' + ruleKind(r), icon: 'trash' }));
       rl.appendChild(row);
     });
     $('ruleForm').hidden = !ruleDraft.open; $('ruleAdd').hidden = ruleDraft.open;
@@ -263,7 +263,7 @@
     if (ruleDraft.open) $('sectRules').open = true;
     renderCarry();
     const resume = liveGame(); const cp = E.carryPreview(S, now());
-    const foot = $('footInner'); foot.innerHTML = '';
+    const foot = $('footInner'); foot.innerHTML = ''; foot.className = 'fbar';
     foot.appendChild(btn(resume ? 'Back to the game' : cp ? 'Start game ' + (cp.games + 1) : 'Start the game', 'primary big', () => {
       if (resume) { commit(() => { S.screen = 'game'; }); return; }
       arm(); pickVoice();
@@ -315,12 +315,12 @@
       card.className = 'card plan live';
       const eyebrow = { rotation: 'Swap now', fill: 'Send in', fix: 'Fix it', return: 'Back in' }[p.type] || 'Swap now';
       card.innerHTML = '<div class="eyebrow"><span>' + eyebrow + '</span><span class="num" id="subTimer"></span></div>' + pairsHtml(p);
-      row.append(btn('Say it', 'quiet', () => { arm(); speak(callText(p), true); }, { icon: 'speak' }),
-        btn(p.type === 'rotation' ? 'Skip this one' : p.type === 'fix' || p.type === 'fill' ? 'Leave it' : 'Never mind', 'quiet', () => commit(() => E.dismissPending(S, now())), { icon: p.type === 'rotation' ? 'skip' : 'close' }));
+      row.append(btn('Say it', 'sm quiet', () => { arm(); speak(callText(p), true); }, { icon: 'speak' }),
+        btn(p.type === 'rotation' ? 'Skip this one' : p.type === 'fix' || p.type === 'fill' ? 'Leave it' : 'Never mind', 'sm quiet', () => commit(() => E.dismissPending(S, now())), { icon: p.type === 'rotation' ? 'skip' : 'close' }));
     } else {
       card.className = 'card plan';
       card.innerHTML = '<div class="eyebrow"><span>Next swap</span><span class="num" id="subTimer"></span></div>' + (view.move ? pairsHtml(view.move) : '<p class="note">Nobody on the bench to swap in.</p>');
-      const b = btn('Swap now', '', swapNow, { icon: 'swap' }); b.disabled = !view.move; row.appendChild(b);
+      const b = btn('Swap now', 'sm', swapNow, { icon: 'swap' }); b.disabled = !view.move; row.appendChild(b);
     }
     card.appendChild(row);
   }
@@ -462,7 +462,6 @@
   }
   function renderGame(view) {
     const g = S.game; ui.els.clear();
-    $('playBtn').innerHTML = icon(g.running ? 'pause' : 'play') + '<span>' + (g.running ? 'Pause' : 'Play') + '</span>'; $('playBtn').disabled = !!g.breakPending;
     renderBanners(); renderPlan(view);
     const fl = $('fieldList'); fl.innerHTML = ''; g.field.forEach((id) => fl.appendChild(tile(id, 'field', view)));
     if (!g.field.length) { const e = document.createElement('p'); e.className = 'empty'; e.textContent = 'Nobody on. Drag kids here or tap Who\'s on?'; fl.appendChild(e); }
@@ -476,10 +475,19 @@
     $('fieldCount').textContent = g.field.length + '/' + S.settings.fieldSize;
     $('sizeBtn').textContent = S.settings.fieldSize + 'v' + S.settings.fieldSize; $('sizeBtn').onclick = openSize;
     $('benchCount').textContent = String(g.bench.length);
-    const foot = $('footInner');
-    if (g.pending) foot.appendChild(doneBtn('goBtn'));
-    else { foot.appendChild(btn("Who's on?", 'big quiet', openWhoOn, { id: 'whoOnBtn', icon: 'roster' })); const pp = btn(g.running ? 'Pause' : 'Play', 'primary big', togglePlay, { icon: g.running ? 'pause' : 'play' }); pp.disabled = !!g.breakPending; foot.appendChild(pp); }
-    foot.appendChild(onHold(btn('Menu', 'menu quiet', null, { id: 'menuBtn', title: 'Menu (press and hold)', icon: 'menu' }), 500, openSheet, 'Hold to open the menu'));
+    // Control row: one big round action in the middle (Done when a call is up, else Pause/Play), labeled round buttons either side.
+    const foot = $('footInner'); foot.className = 'ctrl';
+    foot.appendChild(roundBtn("Who's on", 'roster', 'side', openWhoOn, { id: 'whoOnBtn' }));
+    if (g.pending) foot.appendChild(roundBtn('Done', 'check', 'main', confirmSwap, { id: 'goBtn' }));
+    else { const pp = roundBtn(g.running ? 'Pause' : 'Play', g.running ? 'pause' : 'play', 'main', togglePlay, { id: 'playBtn' }); pp.disabled = !!g.breakPending; foot.appendChild(pp); }
+    foot.appendChild(onHold(roundBtn('Menu', 'menu', 'side', null, { id: 'menuBtn', title: 'Menu (press and hold)' }), 500, openSheet, 'Hold to open the menu'));
+  }
+  // Strava-style round control: a circle with the icon, the label underneath.
+  function roundBtn(label, ic, cls, onClick, opts) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'rbtn ' + cls;
+    b.innerHTML = '<span class="circ">' + icon(ic) + '</span><span class="rlbl">' + esc(label) + '</span>';
+    if (onClick) b.onclick = onClick; if (opts && opts.id) b.id = opts.id; if (opts && opts.title) { b.title = opts.title; b.setAttribute('aria-label', opts.title); }
+    return b;
   }
   // Text that changes every second, written into elements the last redraw created.
   // The bottom block changes height with the call; keep the page's bottom padding in step with it.
@@ -489,8 +497,9 @@
     fitFoot();
     const t = now();
     $('clock').textContent = mmss(g.t); // counts up, like the match clock
-    $('periodLbl').textContent = (S.settings.periods === 2 ? 'H' : 'Q') + g.period + ' of ' + S.settings.periods + ' · to ' + mmss(S.settings.periodSec) + (g.running ? '' : ' · paused');
-    const st = $('subTimer'); if (st) st.textContent = g.pending ? (g.pending.type === 'rotation' ? 'timer resets on Done' : '') : 'in ' + mmss(g.subT);
+    $('periodLbl').textContent = (S.settings.periods === 2 ? 'Half ' : 'Quarter ') + g.period + ' of ' + S.settings.periods + (g.running ? '' : ' · paused');
+    const top = $('subTimerTop'); top.textContent = g.breakPending ? 'break' : g.pending ? 'now' : mmss(g.subT); top.classList.toggle('due', !!g.pending);
+    const st = $('subTimer'); if (st) st.textContent = g.pending ? '' : 'in ' + mmss(g.subT);
     ui.els.forEach((m, id) => {
       const played = mins(E.played(S, id));
       if (m.list === 'field') m.el.textContent = m.state ? m.state + ' · ' + played : played + ' · on ' + mmss(E.stint(S, id));
@@ -658,7 +667,6 @@
     $('pasteLink').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('pasteBtn').click(); });
     $('helpBtn').onclick = () => commit(() => { S.screen = 'help'; });
     $('helpBack').onclick = () => commit(() => { S.screen = homeScreen(); });
-    $('playBtn').onclick = togglePlay;
     $('nextGameBtn').onclick = () => commit(() => E.newGame(S, true));
     $('newGameBtn').onclick = () => commit(() => E.newGame(S, false));
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (ui.sheet) closeSheet(); else if (ui.pocket) closePocket(); } });
