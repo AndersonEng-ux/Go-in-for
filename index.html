@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Go In For</title>
+  <meta name="description" content="Sideline substitution planner for 6v6 rec soccer. Tells you who goes in for whom.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Go In For">
+  <meta name="theme-color" content="#FAFBF8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0D1310" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- SETUP -->
+  <section id="setup" class="screen">
+    <div>
+      <h1>Go In For</h1>
+      <p class="muted">Tap the kids who are here. Late kids can be added during the game.</p>
+    </div>
+
+    <div class="card">
+      <h2>Who's here</h2>
+      <div id="attendList" class="list"></div>
+      <div class="row">
+        <input type="text" id="newName" placeholder="Add a kid" autocomplete="off" autocapitalize="words" style="flex:1">
+        <button class="btn" id="addBtn" type="button">Add</button>
+      </div>
+      <p id="calc" class="calc"></p>
+    </div>
+
+    <div class="card">
+      <h2>Game</h2>
+      <div class="setting"><span class="lab">Kids on the field</span><div class="seg" id="segSize"></div></div>
+      <div class="setting"><span class="lab">Kids per swap</span><div class="seg" id="segSubs"></div></div>
+      <div class="setting"><span class="lab">Swap every</span><div class="stepper" id="stInterval"></div></div>
+      <div class="setting"><span class="lab">Periods</span><div class="seg" id="segPeriods"></div></div>
+      <div class="setting"><span class="lab">Minutes per period</span><div class="stepper" id="stPeriod"></div></div>
+      <div class="setting"><span class="lab">Check on a kid who left after</span><div class="stepper" id="stCheck"></div></div>
+    </div>
+
+    <div class="card">
+      <h2>Announcing</h2>
+      <div class="toggle"><span>Speak the calls out loud (works with AirPods)</span><button class="btn sm" id="tglAnnounce" type="button"></button></div>
+      <div class="setting"><span class="lab">Heads-up before a swap</span><div class="seg" id="segWarn"></div></div>
+      <div class="setting"><span class="lab">Repeat an unconfirmed call every</span><div class="seg" id="segRepeat"></div></div>
+      <div class="row"><button class="btn quiet" id="testVoice" type="button">Test the voice</button></div>
+      <p class="muted">Keep the ringer switch on. iPhone mutes web audio on silent.</p>
+    </div>
+
+    <div class="card">
+      <h2>Rules</h2>
+      <p class="muted">The plan never breaks these. You can still swap by hand if you need to.</p>
+      <div id="ruleList" class="list"></div>
+      <div id="ruleForm" class="list" hidden>
+        <div class="seg" id="ruleKind"></div>
+        <p class="muted" id="ruleHint"></p>
+        <div id="ruleMinWrap" hidden><div class="seg" id="ruleMin"></div></div>
+        <div class="pick" id="rulePick"></div>
+        <div class="row">
+          <button class="btn quiet" id="ruleCancel" type="button">Cancel</button>
+          <button class="btn primary" id="ruleSave" type="button">Save rule</button>
+        </div>
+      </div>
+      <button class="btn quiet" id="ruleAdd" type="button">+ Add a rule</button>
+    </div>
+
+    <div class="card">
+      <h2>Roster link</h2>
+      <p class="muted">A private link that loads this roster, rules, and settings on another phone. It lives only in the link, not on any server.</p>
+      <div class="row">
+        <button class="btn quiet" id="copyLink" type="button">Copy my roster link</button>
+        <button class="btn quiet" id="showLink" type="button">Show link</button>
+      </div>
+      <textarea class="link" id="linkBox" readonly hidden></textarea>
+      <div class="row">
+        <input type="text" id="pasteLink" placeholder="Paste a roster link or code" autocomplete="off" style="flex:1">
+        <button class="btn" id="pasteBtn" type="button">Load</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <button class="btn quiet" id="helpBtn" type="button">Help &amp; setup</button>
+    </div>
+  </section>
+
+  <!-- GAME -->
+  <section id="game" class="screen" hidden>
+    <div class="bar">
+      <div class="clock num"><span id="clock">10:00</span><small id="periodLbl">Q1 of 4</small></div>
+      <button class="btn primary" id="playBtn" type="button" style="min-width:96px">Pause</button>
+    </div>
+
+    <div id="banners" class="list"></div>
+
+    <div class="card plan" id="planCard"></div>
+
+    <div>
+      <h2 style="margin-bottom:8px">On the field <span id="fieldCount" class="num"></span></h2>
+      <div id="fieldList" class="list"></div>
+    </div>
+
+    <div>
+      <h2 style="margin-bottom:8px">Bench <span id="benchCount" class="num"></span></h2>
+      <div id="benchList" class="list"></div>
+      <div class="row" style="margin-top:8px">
+        <input type="text" id="lateName" placeholder="Late kid" autocomplete="off" autocapitalize="words" style="flex:1">
+        <button class="btn sm" id="lateBtn" type="button">Add to bench</button>
+      </div>
+    </div>
+
+    <div id="awayWrap" hidden>
+      <h2 style="margin-bottom:8px">Off to the side</h2>
+      <div id="awayList" class="list"></div>
+    </div>
+
+    <p class="muted" style="font-size:15px">Tap a kid on the field, then a kid on the bench, to swap by hand. Hold the menu button for undo, pocket screen, roster, and end game.</p>
+  </section>
+
+  <!-- SUMMARY -->
+  <section id="summary" class="screen" hidden>
+    <div><h1>Final whistle</h1><p class="muted" id="sumLine"></p></div>
+    <div class="card"><table id="sumTable"></table></div>
+    <div class="row"><button class="btn primary big" id="newGameBtn" type="button">New game, same roster</button></div>
+  </section>
+
+  <!-- HELP -->
+  <section id="help" class="screen" hidden>
+    <div><h1>Help &amp; setup</h1><p class="muted">Two minutes before the first game, then you never think about it again.</p></div>
+
+    <div class="card help">
+      <h3>Put it on your Home Screen</h3>
+      <ol>
+        <li>Open this page in Safari on your iPhone.</li>
+        <li>Tap the Share button, then <b>Add to Home Screen</b>, then Add.</li>
+        <li>Open it from the Home Screen from now on. It runs full screen and works with no signal.</li>
+      </ol>
+      <p class="muted">The first open needs a signal so it can save itself for offline use. After that, airplane mode is fine.</p>
+    </div>
+
+    <div class="card help">
+      <h3>Lock the phone to this app (Guided Access)</h3>
+      <ol>
+        <li>Settings, Accessibility, <b>Guided Access</b>, turn it on. Set a passcode. Turn on Accessibility Shortcut.</li>
+        <li>Open Go In For, then <b>triple-click the side button</b> and tap Start.</li>
+        <li>Notifications, other apps, and the Home gesture are blocked until you triple-click again and enter the passcode.</li>
+      </ol>
+      <p class="muted">Guided Access keeps other apps out. The Pocket screen in the menu keeps pocket taps out: it shows only the clock and the call, and it unlocks with a one-second hold.</p>
+    </div>
+
+    <div class="card help">
+      <h3>Pre-game checklist</h3>
+      <ul>
+        <li>Ringer switch on. AirPods in if you want the calls spoken.</li>
+        <li>Screen brightness up. The app keeps the screen awake while the clock runs.</li>
+        <li>Tap the kids who are here. Check the minutes line under the roster.</li>
+        <li>Start the game, triple-click for Guided Access, tap the menu and choose Pocket screen.</li>
+      </ul>
+    </div>
+
+    <div class="card help">
+      <h3>During the game</h3>
+      <ul>
+        <li>One minute before a swap it says who is coming. When the timer hits, it says it again and buzzes.</li>
+        <li>Press and hold <b>Done, they swapped</b> once the kids have moved. It repeats the call every so often until you do.</li>
+        <li>A kid walks off: tap <b>Left</b> on their row. It names the next kid to send in and checks back with you after a few minutes.</li>
+        <li>Tap a kid on the field, then a kid on the bench, to swap by hand. Undo is in the menu.</li>
+      </ul>
+    </div>
+
+    <div class="card help">
+      <h3>Known limits</h3>
+      <ul>
+        <li>The phone screen has to stay on. iOS freezes web apps when the screen locks, so there are no locked-screen alerts.</li>
+        <li>The ringer switch must be on for the voice and the beep.</li>
+        <li>Nothing leaves the phone. Roster and games are saved in this browser only. Use the roster link to move a roster to another phone.</li>
+      </ul>
+      <p class="muted" id="verLine"></p>
+    </div>
+
+    <div class="row"><button class="btn primary" id="helpBack" type="button">Back</button></div>
+  </section>
+</div>
+
+<div class="foot" id="foot"><div class="inner" id="footInner"></div></div>
+<div id="overlay"></div>
+
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+name: Go In For — test and deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Engine tests and contrast check
+        run: npm test
+      - name: Phone flow tests in Chromium
+        run: |
+          npm install --no-save playwright@1.63.0
+          npx playwright install --with-deps chromium
+          python3 -m http.server 8765 --bind 127.0.0.1 --directory . &
+          sleep 1
+          node tests/flows.mjs http://127.0.0.1:8765/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: screenshots, path: tests/shots, if-no-files-found: ignore }
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions: { contents: read, pages: write, id-token: write }
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage the app (no tests, no node files)
+        run: |
+          mkdir -p dist && cp -r index.html app.js engine.js styles.css sw.js manifest.webmanifest icons fonts dist/
+          touch dist/.nojekyll
+      - uses: actions/configure-pages@v5
+        with: { enablement: true }
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: dist }
+      - id: deployment
+        uses: actions/deploy-pages@v4

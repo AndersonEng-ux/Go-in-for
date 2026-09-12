@@ -1,0 +1,12 @@
+{
+  "name": "go-in-for",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sideline substitution planner for 6v6 rec soccer.",
+  "scripts": {
+    "test": "node --test tests/engine.test.mjs && node tests/contrast.mjs",
+    "test:flows": "node tests/flows.mjs",
+    "icons": "node tests/make-icons.mjs",
+    "build:artifact": "node tests/build-artifact.mjs"
+  }
+}
