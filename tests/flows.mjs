@@ -17,6 +17,7 @@ const hold = async (sel, ms) => { const el = await p.$(sel); await el.scrollInto
 const shot = (name, full) => p.screenshot({ path: OUT + '/' + name + '.png', fullPage: !!full });
 const rowName = (r) => r.$eval('.pname', (e) => e.firstChild.textContent);
 const noHScroll = async (page) => !(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth));
+const openSects = () => p.evaluate(() => document.querySelectorAll('details.sect').forEach((d) => { d.open = true; }));
 const endPeriodNow = async () => { await p.evaluate(() => { const g = window.__goinfor.state.game; g.pending = null; g.t = 299; g.lastTick -= 1000; window.__goinfor.tick(); }); await p.waitForTimeout(300); };
 
 await p.goto(BASE, { waitUntil: 'load' });
@@ -25,6 +26,7 @@ check(await p.title() === 'Go In For', 'page title');
 check(await p.$eval('#setup', (e) => !e.hidden), 'setup screen shows first');
 check(await noHScroll(p), 'no horizontal scroll on setup');
 await shot('01-setup-light', true);
+await openSects();
 // Toggling attendance and settings must not duplicate the footer button
 await (await p.$$('#attendList .btn.here'))[0].click(); await (await p.$$('#segSubs .btn'))[0].click(); await (await p.$$('#attendList .btn.here'))[0].click();
 check((await p.$$('#footInner .btn')).length === 1, 'one Start button after several setup taps');
@@ -36,7 +38,7 @@ check(await p.$eval('#attendList .btn.here[aria-pressed="true"]', (b) => { const
 const enc = await p.evaluate((coach) => { const E = window.__goinfor.Engine; const S = E.defaults();
   E.importRoster(S, Object.assign({}, coach, { settings: { intervalSec: 60, periodSec: 300, periods: 2, checkBackSec: 60, warnSec: 30, repeatSec: 30 } }));
   return E.encodeRoster(S); }, COACH);
-await p.goto(BASE + '#roster=' + enc, { waitUntil: 'load' }); await p.waitForTimeout(500);
+await p.goto(BASE + '#roster=' + enc, { waitUntil: 'load' }); await p.waitForTimeout(500); await openSects();
 let s = await st();
 check(s.players.length === 11 && s.rules.length === 4, 'roster link loaded 11 kids and 4 rules');
 check(s.settings.intervalSec === 60, 'roster link carried settings');
@@ -92,7 +94,7 @@ check(await p.$eval('#notHereWrap', (e) => e.hidden), 'not-here-yet list hides w
 
 // Left early -> fill -> check back -> return
 const leftName = (await names('#fieldList')).find((n) => n !== 'Craig');
-for (const r of await p.$$('#fieldList .prow')) { if ((await rowName(r)) === leftName) { await (await r.$('button:has-text("Left")')).click(); break; } }
+for (const r of await p.$$('#fieldList .prow')) { if ((await rowName(r)) === leftName) { await (await r.$('.pname')).click(); await p.waitForTimeout(150); await p.click('#fieldList .prow.open button:has-text("Left")'); break; } }
 await p.waitForTimeout(250); s = await st();
 check(s.game.field.length === 5 && s.game.pending && s.game.pending.type === 'fill', leftName + ' left: fill move offered');
 check(s.game.away.length === 1, 'kid listed as off to the side');
@@ -110,7 +112,9 @@ check(s.game.away.length === 0, 'off-to-the-side list cleared');
 // Manual swap by tapping
 const f1 = (await p.$$('#fieldList .prow'))[1]; const b1 = (await p.$$('#benchList .prow'))[0];
 const fName = await rowName(f1); const bName = await rowName(b1);
-await (await f1.$('.pname')).click(); await p.waitForTimeout(150); await (await (await p.$$('#benchList .prow'))[0].$('.pname')).click(); await p.waitForTimeout(250);
+await (await f1.$('.pname')).click(); await p.waitForTimeout(150); await p.click('#fieldList .prow.open button:has-text("Pick")'); await p.waitForTimeout(150);
+check((await p.$eval('#banners', (e) => e.innerText)).includes(fName + ' picked'), 'Pick shows who is picked');
+await (await (await p.$$('#benchList .prow'))[0].$('.pname')).click(); await p.waitForTimeout(250);
 const fieldNow = await names('#fieldList');
 s = await st(); check(fieldNow.includes(bName) && !fieldNow.includes(fName), 'tap-to-swap moved ' + bName + ' in for ' + fName + ' [field: ' + fieldNow.join(',') + '; pending: ' + (s.game.pending ? s.game.pending.type : 'none') + '; sel banner: ' + (await p.$eval('#banners', (e) => e.innerText)).slice(0, 80) + ']');
 
@@ -157,15 +161,15 @@ s = await st(); check(s.game.field.length === 6, 'drag back to the bench leaves 
 await p.click('#benchList .prow:first-child .grip'); await p.waitForTimeout(150); s = await st(); check(s.game.field.length === 6, 'a tap on the grip moves nobody');
 
 // Live field size: 4v4 takes two off, back to 6v6 sends two in
-await p.click('#fieldSizeSeg .btn:nth-child(1)'); await p.waitForTimeout(250); s = await st();
+await p.click('#sizeBtn'); await p.waitForTimeout(200); await p.click('#sizePick .btn:has-text("4v4")'); await p.waitForTimeout(250); s = await st();
 check(s.settings.fieldSize === 4 && s.game.pending && s.game.pending.type === 'fix' && s.game.pending.offs.length - s.game.pending.ons.length === 2, '4v4: fix call nets two off [size ' + s.settings.fieldSize + ', pending ' + (s.game.pending ? s.game.pending.type + ' offs ' + s.game.pending.offs.length + ' ons ' + s.game.pending.ons.length + ' note ' + s.game.pending.note : 'none') + ', field ' + s.game.field.length + ']');
 await p.click('#goBtn'); await p.waitForTimeout(250); s = await st(); check(s.game.field.length === 4, 'four on the field');
-await p.click('#fieldSizeSeg .btn:nth-child(3)'); await p.waitForTimeout(250); s = await st();
+await p.click('#sizeBtn'); await p.waitForTimeout(200); await p.click('#sizePick .btn:has-text("6v6")'); await p.waitForTimeout(250); s = await st();
 check(s.settings.fieldSize === 6 && s.game.pending && s.game.pending.type === 'fill' && s.game.pending.ons.length === 2, '6v6: send-in call brings two on');
 await p.click('#goBtn'); await p.waitForTimeout(250); s = await st(); check(s.game.field.length === 6, 'six on again');
 // Sub: take a named kid off now, then Leave it
 const subName = (await names('#fieldList'))[0];
-await p.click('#fieldList .prow:first-child button[title^="Take"]'); await p.waitForTimeout(250); s = await st();
+await p.click('#fieldList .prow:first-child .pname'); await p.waitForTimeout(150); await p.click('#fieldList .prow.open button[title^="Take"]'); await p.waitForTimeout(250); s = await st();
 check(s.game.pending && s.game.pending.type === 'fix' && s.players.find((x) => x.id === s.game.pending.offs[0]).name === subName && s.game.pending.ons.length === 1, 'Sub offers a swap for ' + subName);
 await p.click('#planCard button:has-text("Leave it")'); await p.waitForTimeout(250); s = await st();
 check(!s.game.pending && (await names('#fieldList'))[0] === subName, 'Leave it keeps ' + subName + ' on with no call');

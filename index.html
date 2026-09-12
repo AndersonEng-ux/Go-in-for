@@ -29,7 +29,7 @@
 
     <div class="card">
       <h2>Who's here</h2>
-      <div id="attendList" class="list"></div>
+      <div id="attendList" class="pills"></div>
       <p id="calc" class="calc"></p>
       <div class="row"><button class="btn quiet sm" id="editRoster" type="button" aria-pressed="false">Edit team</button></div>
       <div class="field" id="newKid" hidden>
@@ -47,18 +47,18 @@
       <div class="seg" id="carrySeg"></div>
     </div>
 
-    <div class="card">
-      <h2>Game</h2>
+    <details class="card sect" id="sectGame">
+      <summary><h2>Game</h2><span class="sum" id="sectGameSum"></span><span class="chev" aria-hidden="true"></span></summary>
       <div class="setting"><span class="lab">Kids on the field</span><div class="seg" id="segSize"></div></div>
       <div class="setting"><span class="lab">Kids per swap</span><div class="seg" id="segSubs"></div></div>
       <div class="setting"><span class="lab">Swap every</span><div class="stepper" id="stInterval"></div></div>
       <div class="setting"><span class="lab">Periods</span><div class="seg" id="segPeriods"></div></div>
       <div class="setting"><span class="lab">Minutes per period</span><div class="stepper" id="stPeriod"></div></div>
       <div class="setting"><span class="lab">Check on a kid who left after</span><div class="stepper" id="stCheck"></div></div>
-    </div>
+    </details>
 
-    <div class="card">
-      <h2>Announcing</h2>
+    <details class="card sect" id="sectVoice">
+      <summary><h2>Announcing</h2><span class="sum" id="sectVoiceSum"></span><span class="chev" aria-hidden="true"></span></summary>
       <div class="toggle"><span>Speak the calls out loud (works with AirPods)</span><button class="btn sm" id="tglAnnounce" type="button" role="switch"></button></div>
       <div class="setting"><span class="lab">Heads-up before a swap</span><div class="seg" id="segWarn"></div></div>
       <div class="setting"><span class="lab">Repeat an unconfirmed call every</span><div class="seg" id="segRepeat"></div></div>
@@ -69,10 +69,10 @@
       </div>
       <div class="row"><button class="btn quiet" id="testVoice" type="button">Test the voice</button></div>
       <p class="muted">Keep the ringer switch on. iPhone mutes web audio on silent.</p>
-    </div>
+    </details>
 
-    <div class="card">
-      <h2>Rules</h2>
+    <details class="card sect" id="sectRules">
+      <summary><h2>Rules</h2><span class="sum" id="sectRulesSum"></span><span class="chev" aria-hidden="true"></span></summary>
       <p class="muted">The plan never breaks these. You can still swap by hand if you need to.</p>
       <div id="ruleList" class="list"></div>
       <div id="ruleForm" class="list" hidden>
@@ -86,10 +86,10 @@
         </div>
       </div>
       <button class="btn quiet" id="ruleAdd" type="button">+ Add a rule</button>
-    </div>
+    </details>
 
-    <div class="card">
-      <h2>Roster link</h2>
+    <details class="card sect" id="sectLink">
+      <summary><h2>Roster link</h2><span class="sum" id="sectLinkSum"></span><span class="chev" aria-hidden="true"></span></summary>
       <p class="muted">A private link that loads this roster, rules, and settings on another phone. It lives only in the link, not on any server.</p>
       <div class="row">
         <button class="btn quiet" id="copyLink" type="button">Copy my roster link</button>
@@ -103,7 +103,7 @@
           <button class="btn" id="pasteBtn" type="button">Load</button>
         </div>
       </div>
-    </div>
+    </details>
 
     <div class="row">
       <button class="btn quiet" id="helpBtn" type="button">Help &amp; setup</button>
@@ -111,7 +111,7 @@
   </section>
 
   <!-- GAME -->
-  <section id="game" class="screen" hidden>
+  <section id="game" class="screen game" hidden>
     <div class="bar">
       <div class="clock num"><span id="clock">0:00</span><small id="periodLbl">Q1 of 4</small></div>
       <button class="btn primary" id="playBtn" type="button" style="min-width:96px">Pause</button>
@@ -119,37 +119,23 @@
 
     <div id="banners" class="list"></div>
 
-    <div class="card plan" id="planCard"></div>
-
-    <div class="zone" id="fieldZone" data-drop="field">
-      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2>On the field <span id="fieldCount" class="num"></span></h2><button class="btn sm quiet" id="whoOnBtn" type="button" style="flex:0 0 auto">Who's on?</button></div>
-      <div class="seg" id="fieldSizeSeg" style="margin-bottom:8px" aria-label="Playing how many a side"></div>
-      <div id="fieldList" class="list"></div>
-    </div>
-
-    <div class="zone" id="benchZone" data-drop="bench">
-      <h2 style="margin-bottom:8px">Bench <span id="benchCount" class="num"></span></h2>
-      <div id="benchList" class="list"></div>
-      <div id="notHereWrap" style="margin-top:12px" hidden>
-        <h2 style="margin-bottom:8px">Not here yet</h2>
-        <p class="muted" style="font-size:15px;margin-bottom:8px">Tap a kid when they arrive. They join the bench and their rules apply.</p>
-        <div class="pick" id="notHere"></div>
+    <div class="cols">
+      <div class="col zone" id="fieldZone" data-drop="field">
+        <div class="colhead"><h2>Field <span id="fieldCount" class="num"></span></h2><button class="btn sm quiet size" id="sizeBtn" type="button" title="Playing how many a side">6v6</button></div>
+        <div id="fieldList" class="tiles"></div>
       </div>
-      <div class="field" style="margin-top:12px">
-        <label for="lateName">A kid who is not on the team yet</label>
-        <div class="row">
-          <input type="text" id="lateName" placeholder="First name" autocomplete="off" autocapitalize="words" style="flex:1">
-          <button class="btn" id="lateBtn" type="button">Add</button>
+      <div class="col zone" id="benchZone" data-drop="bench">
+        <div class="colhead"><h2>Bench <span id="benchCount" class="num"></span></h2></div>
+        <div id="benchList" class="tiles"></div>
+        <div id="awayList" class="tiles"></div>
+        <div id="notHereWrap" hidden>
+          <div class="colhead"><h2>Not here yet</h2></div>
+          <div id="notHere" class="tiles"></div>
         </div>
       </div>
     </div>
 
-    <div id="awayWrap" hidden>
-      <h2 style="margin-bottom:8px">Off to the side</h2>
-      <div id="awayList" class="list"></div>
-    </div>
-
-    <p class="muted" style="font-size:15px">Lost track? Drag a kid by the handle to the field or the bench to match what is really out there. Tap a kid on the field, then a kid on the bench, to swap. Hold the menu button for undo, pocket screen, roster, and end game.</p>
+    <p class="muted hint">Tap a kid for Sub, Goalie, Left, or Pick a swap. Drag by the handle to move a kid. Lost track? Who's on? below. Hold Menu for undo, pocket screen, roster, and end game.</p>
   </section>
 
   <!-- SUMMARY -->
@@ -200,7 +186,7 @@
       <h3>During the game</h3>
       <ul>
         <li>One minute before a swap it says who is coming. When the timer hits, it says it again and buzzes.</li>
-        <li>Tap <b>Done, they swapped</b> once the kids have moved. It repeats the call every so often until you do. Tapped by mistake? Undo sits on the message for a few seconds.</li>
+        <li>Tap <b>Done</b> once the kids have moved. It repeats the call every so often until you do. Tapped by mistake? Undo sits on the message for a few seconds.</li>
         <li>A kid shows up late: tap their name under <b>Not here yet</b>. They join the bench and every rule about them is live again. Only use Remove (under Edit team) to take a kid off the team for good.</li>
         <li>A kid walks off: tap <b>Left</b> on their row. It names the next kid to send in and checks back with you after a few minutes.</li>
         <li>Tap a kid on the field, then a kid on the bench, to swap by hand. Undo is in the menu.</li>
@@ -234,7 +220,7 @@
   </section>
 </div>
 
-<div class="foot" id="foot"><div class="inner" id="footInner"></div></div>
+<div class="foot" id="foot"><div class="inner"><div class="card plan" id="planCard" hidden></div><div class="fbar" id="footInner"></div></div></div>
 <div id="overlay"></div>
 
 <script src="engine.js"></script>
