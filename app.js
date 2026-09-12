@@ -4,7 +4,7 @@
   const E = window.Engine;
   const KEY = 'goinfor_v2';
   const OLD_KEY = 'goinfor_v1';
-  const APP_VERSION = '1.5.0';
+  const APP_VERSION = '1.6.0';
   const SAVE_EVERY_MS = 5000;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

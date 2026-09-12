@@ -11,7 +11,7 @@ const ratio = (a, b) => { const la = lum(a), lb = lum(b); return (Math.max(la, l
 const PAIRS = [
   ['ink', 'bg', 7, 'body text on page'], ['ink', 'surface', 7, 'names on cards'], ['ink', 'surface-2', 7, 'button labels'],
   ['muted', 'bg', 7, 'secondary text on page'], ['muted', 'surface', 7, 'secondary text on cards'],
-  ['pitch-ink', 'pitch', 4.5, 'primary button label'], ['pitch-text', 'pitch-soft', 7, 'green chip text'], ['pitch-text', 'surface', 4.5, 'green names in the call'],
+  ['accent-ink', 'accent', 4.5, 'primary button label'], ['bg', 'ink', 7, 'pressed toggle label'], ['pitch-ink', 'pitch', 4.5, 'blue chip label'], ['pitch-text', 'pitch-soft', 7, 'green chip text'], ['pitch-text', 'surface', 4.5, 'green names in the call'],
   ['amber-ink', 'amber', 4.5, 'next-off chip'], ['amber-text', 'amber-soft', 7, 'check banner'], ['amber-text', 'surface', 4.5, 'amber names in the call'],
   ['red-ink', 'red', 4.5, 'away chip'], ['red-text', 'red-soft', 7, 'warning banner and danger button'],
   ['ink', 'amber-soft', 7, 'text in the check banner'], ['ink', 'red-soft', 7, 'text in the warning banner'], ['ink', 'pitch-soft', 7, 'text in the info banner'],

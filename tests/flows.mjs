@@ -242,7 +242,7 @@ if (BASE.startsWith('http')) {
   await ctx.setOffline(true);
   await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(500);
   check(await p.title() === 'Go In For', 'page loads offline');
-  const fontOk = await p.evaluate(() => document.fonts.check('800 20px "Barlow Condensed"'));
+  const fontOk = await p.evaluate(() => document.fonts.check('700 20px "Barlow"'));
   check(fontOk, 'fonts available offline');
   check(await p.$('#startBtn') !== null, 'app works offline');
   await ctx.setOffline(false);
