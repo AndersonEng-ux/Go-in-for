@@ -171,6 +171,22 @@
   };
   const ruleKind = (r) => (r.type === 'keep' ? 'Always keep at least ' + (r.min || 1) + ' on' : r.type === 'limit' ? 'Never more than ' + (r.max || 1) + ' on at once' : RULE_TEXT[r.type].kind);
 
+  // ---------- Fairness check (plays today's game in memory) ----------
+  const fairCache = new Map();
+  function fair(rules) {
+    const key = JSON.stringify([S.players.filter((p) => p.here).map((p) => p.id), rules, S.settings]);
+    if (!fairCache.has(key)) { if (fairCache.size > 40) fairCache.clear(); fairCache.set(key, E.fairness(S, rules)); }
+    return fairCache.get(key);
+  }
+  const range = (f) => mins(f.lo) + ' to ' + mins(f.hi);
+  const lowestNames = (f) => f.lowest.slice(0, 3).map((id) => E.nameOf(S, id)).join(', ') + (f.lowest.length > 3 ? ' and others' : '');
+  // Whole-set verdict for the Rules card; class warn when someone ends a stint or more behind.
+  function fairText(f) {
+    if (!f) return { text: 'Not enough kids here to play a game.', warn: false };
+    const warn = f.spread >= S.settings.intervalSec;
+    return { warn, text: warn ? 'With today\'s kids these rules leave ' + lowestNames(f) + ' at ' + mins(f.lo) + ' while others get ' + mins(f.hi) + '.' : 'With today\'s kids everyone gets ' + range(f) + '.' };
+  }
+
   // ---------- Setup screen ----------
   function renderSetup() {
     const st = S.settings;
@@ -207,9 +223,14 @@
     $('voiceSel').onchange = () => { S.settings.voice = $('voiceSel').value; save(); arm(); pickVoice(); speak('Swap now. Ava in for Ben.', true); };
 
     const rl = $('ruleList'); rl.innerHTML = '';
+    const fAll = fair(S.rules); const verdict = fairText(fAll);
+    $('rulesFair').textContent = verdict.text; $('rulesFair').className = 'calc' + (verdict.warn ? ' warn' : '');
     S.rules.forEach((r) => {
       const row = document.createElement('div'); row.className = 'rule';
-      const txt = document.createElement('div'); txt.innerHTML = '<div class="kind">' + esc(ruleKind(r)) + '</div><div class="who">' + esc(r.ids.map((id) => E.nameOf(S, id)).join(r.type === 'keep' || r.type === 'limit' ? ', ' : ' + ')) + '</div>';
+      const fW = fAll ? fair(S.rules.filter((x) => x.id !== r.id)) : null;
+      const cost = fAll && fW ? fAll.spread - fW.spread : 0;
+      const costLine = cost >= 60 ? '<div class="cost">Costs ' + mins(cost) + ' of even time today</div>' : '';
+      const txt = document.createElement('div'); txt.innerHTML = '<div class="kind">' + esc(ruleKind(r)) + '</div><div class="who">' + esc(r.ids.map((id) => E.nameOf(S, id)).join(r.type === 'keep' || r.type === 'limit' ? ', ' : ' + ')) + '</div>' + costLine;
       row.append(txt, btn('Remove', 'sm quiet', () => { S.rules = S.rules.filter((x) => x.id !== r.id); save(); renderSetup(); toast('Rule removed'); }, { title: 'Remove rule: ' + ruleKind(r), icon: 'trash' }));
       rl.appendChild(row);
     });
@@ -220,15 +241,24 @@
       const grouped = ruleDraft.type === 'keep' || ruleDraft.type === 'limit';
       $('ruleMinWrap').hidden = !grouped;
       if (ruleDraft.type === 'keep') seg($('ruleMin'), [{ label: 'At least 1 on', value: 1 }, { label: 'At least 2 on', value: 2 }], ruleDraft.min, (v) => { ruleDraft.min = v; renderSetup(); });
-      if (ruleDraft.type === 'limit') seg($('ruleMin'), [1, 2, 3].map((n) => ({ label: 'At most ' + n + ' on', value: n })), ruleDraft.min, (v) => { ruleDraft.min = v; renderSetup(); });
+      if (ruleDraft.type === 'limit') seg($('ruleMin'), [1, 2, 3].map((n) => ({ label: 'Max ' + n + ' on', value: n })), ruleDraft.min, (v) => { ruleDraft.min = v; renderSetup(); });
       const pick = $('rulePick'); pick.innerHTML = '';
       S.players.forEach((p) => pick.appendChild(btn(p.name, '', () => { const max = grouped ? 99 : 2; if (ruleDraft.ids.includes(p.id)) ruleDraft.ids = ruleDraft.ids.filter((x) => x !== p.id); else if (ruleDraft.ids.length < max) ruleDraft.ids.push(p.id); renderSetup(); }, { pressed: ruleDraft.ids.includes(p.id) })));
       $('ruleSave').disabled = ruleDraft.type === 'keep' ? ruleDraft.ids.length < ruleDraft.min : ruleDraft.type === 'limit' ? ruleDraft.ids.length <= ruleDraft.min : ruleDraft.ids.length !== 2;
+      const rf = $('ruleFair'); rf.className = 'calc';
+      if ($('ruleSave').disabled) rf.textContent = '';
+      else {
+        const draft = { id: 'draft', type: ruleDraft.type, ids: ruleDraft.ids.slice() }; if (ruleDraft.type === 'keep') draft.min = ruleDraft.min; if (ruleDraft.type === 'limit') draft.max = ruleDraft.min;
+        const before = fair(S.rules), after = fair(S.rules.concat(draft));
+        if (!after) rf.textContent = 'Not enough kids here to check this rule.';
+        else if (!before || after.spread - before.spread < 60) rf.textContent = 'Even time check: with today\'s kids everyone still gets ' + range(after) + '.';
+        else { rf.className = 'calc warn'; rf.textContent = 'Even time check: this rule costs ' + mins(after.spread - before.spread) + '. ' + lowestNames(after) + ' would get ' + mins(after.lo) + ' while others get ' + mins(after.hi) + ' (without it, ' + range(before) + ').'; }
+      }
     }
     const per = st.periods === 2 ? 'two ' + (st.periodSec / 60) + '-min halves' : 'four ' + (st.periodSec / 60) + '-min quarters';
     $('sectGameSum').textContent = st.fieldSize + 'v' + st.fieldSize + ' · ' + st.subsPer + ' per swap · every ' + (st.intervalSec / 60) + ' min · ' + per;
     $('sectVoiceSum').textContent = st.announce ? 'On · ' + (voice ? voice.name.replace(/\s*\(.*$/, '') : 'automatic') + (st.warnSec ? ' · heads-up ' + (st.warnSec >= 60 ? '1 min' : st.warnSec + ' s') : '') : 'Off';
-    $('sectRulesSum').textContent = S.rules.length ? S.rules.length + ' rule' + (S.rules.length > 1 ? 's' : '') : 'No rules yet';
+    $('sectRulesSum').textContent = (S.rules.length ? S.rules.length + ' rule' + (S.rules.length > 1 ? 's' : '') : 'No rules') + (fAll ? ' · ' + range(fAll) + (verdict.warn ? ' !' : '') : '');
     $('sectLinkSum').textContent = 'Copy or load';
     if (ruleDraft.open) $('sectRules').open = true;
     renderCarry();

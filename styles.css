@@ -175,6 +175,8 @@ body.dragging { -webkit-user-select: none; user-select: none; cursor: grabbing; 
 .attend .btn.here[aria-pressed="true"]::before { background: var(--pitch); }
 .calc { font-size: 17px; }
 .calc b { font-family: var(--display); font-size: 24px; }
+.calc.warn { color: var(--amber-text); border-left: 4px solid var(--amber); padding-left: 10px; }
+.rule .cost { font-size: 13px; font-weight: 700; color: var(--amber-text); margin-top: 2px; }
 .help { display: flex; flex-direction: column; gap: 10px; font-size: 17px; line-height: 1.5; }
 .card > .muted, .screen > div > .muted { line-height: 1.5; }
 .help ol, .help ul { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }

@@ -74,12 +74,14 @@
     <details class="card sect" id="sectRules">
       <summary><h2>Rules</h2><span class="sum" id="sectRulesSum"></span><span class="chev" aria-hidden="true"></span></summary>
       <p class="muted">The plan never breaks these. You can still swap by hand if you need to.</p>
+      <p class="calc" id="rulesFair" aria-live="polite"></p>
       <div id="ruleList" class="list"></div>
       <div id="ruleForm" class="list" hidden>
         <div class="seg" id="ruleKind"></div>
         <p class="muted" id="ruleHint"></p>
         <div id="ruleMinWrap" hidden><div class="seg" id="ruleMin"></div></div>
         <div class="pick" id="rulePick"></div>
+        <p class="calc" id="ruleFair" aria-live="polite"></p>
         <div class="row">
           <button class="btn quiet" id="ruleCancel" type="button">Cancel</button>
           <button class="btn primary" id="ruleSave" type="button">Save rule</button>
@@ -192,6 +194,7 @@
         <li>Tap a kid on the field, then a kid on the bench, to swap by hand. Undo is in the menu.</li>
         <li>Short a side, or the other team finally has six? Tap <b>4v4</b>, <b>5v5</b>, or <b>6v6</b> above the field list. The app says who goes in or comes off.</li>
         <li>Want a kid off now? Tap <b>Sub</b> on their row. The app names who goes in for them.</li>
+        <li>Every rule shows what it costs. As you build one, the app plays today's game in memory with and without it and tells you who would end up short. The Rules card shows the minutes range for today's kids.</li>
         <li>When the field is short, over, or breaking a rule, a <b>Fix it</b> call appears with the smallest swap that puts it right. Tap Done once it is done, or Leave it to keep things as they are.</li>
         <li>No idea what happened out there? Tap <b>Who's on?</b> above the field list, tap the kids you can see on the field, then <b>That's who's on</b>. Everyone else goes to the bench and the plan re-forms.</li>
         <li>Lost track of who switched? Drag a kid by the handle on their row to the field or the bench so the app matches what is really out there. Drop a kid on another kid to swap them. If that leaves too many on, the plan says who comes off.</li>

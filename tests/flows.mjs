@@ -51,9 +51,11 @@ s = await st(); check(s.players.length === 11, 'paste box loaded the roster');
 // Add a "never more than 2 of a group on" rule from the setup screen
 await p.click('#ruleAdd'); await p.waitForTimeout(150);
 await p.click('#ruleKind .btn:has-text("Never too many")'); await p.waitForTimeout(150);
-await p.click('#ruleMin .btn:has-text("At most 2")'); await p.waitForTimeout(100);
+await p.click('#ruleMin .btn:has-text("Max 2")'); await p.waitForTimeout(100);
 for (const n of ['Lydon', 'Liam', 'Foster', 'Abe']) { await p.click('#rulePick .btn:has-text("' + n + '")'); await p.waitForTimeout(60); }
+check((await p.$eval('#ruleFair', (e) => e.textContent)).includes('Even time check'), 'the rule form shows the even-time check: ' + (await p.$eval('#ruleFair', (e) => e.textContent)));
 await p.click('#ruleSave'); await p.waitForTimeout(200); s = await st();
+check((await p.$eval('#rulesFair', (e) => e.textContent)).includes("today's kids"), 'the rules card shows the minutes range for today');
 check(s.rules.length === 5 && s.rules[4].type === 'limit' && s.rules[4].max === 2 && s.rules[4].ids.length === 4, 'limit rule saved from the setup screen');
 check((await p.$eval('#ruleList', (e) => e.textContent)).includes('Never more than 2'), 'limit rule listed');
 // Start the game

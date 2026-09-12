@@ -541,3 +541,16 @@ test('fairness: a full game with the coach rules ends within one stint of equal 
   assert.ok(Math.max(...mins) - Math.min(...mins) <= 240, 'spread ' + (Math.max(...mins) - Math.min(...mins)) + ' s');
   assert.ok(grew > 0, 'the catch-up swap was used');
 });
+
+test('fairness check: plays a game in memory and reports the cost of a rule', () => {
+  const t = team(COACH.names, COACH.rules, { periods: 2, periodSec: 1200 });
+  const f = E.fairness(t.S); assert.ok(f && f.spread <= 240 && f.ideal === 1309, 'spread ' + f.spread);
+  assert.equal(Object.keys(f.minutes).length, 11);
+  const lim = { id: 'rx', type: 'limit', max: 2, ids: ['Lydon', 'Liam', 'Foster', 'Abe'].map(t.id) };
+  ['Miles', 'Harrison'].forEach((n) => { t.S.players.find((p) => p.name === n).here = false; });
+  const f9 = E.fairness(t.S, t.S.rules.concat(lim));
+  assert.ok(f9.spread >= 600, 'with 9 kids the limit rule costs minutes (' + f9.spread + ' s)');
+  assert.ok(f9.lowest.some((id) => lim.ids.includes(id)), 'the limited group ends among the lowest');
+  assert.equal(t.S.game, null, 'the real state is untouched'); assert.equal(t.S.players.filter((p) => p.here).length, 9);
+  t.S.players.forEach((p) => { p.here = false; }); assert.equal(E.fairness(t.S), null);
+});

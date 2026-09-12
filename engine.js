@@ -503,6 +503,24 @@
   }
   function markSpoken(S, now) { const p = S.game && S.game.pending; if (p) { p.lastSpoken = now; p.spoken = (p.spoken || 0) + 1; } }
 
+  // ---------- Fairness check: play a whole game in memory with the app's own swaps ----------
+  // Returns minutes per kid for the kids who are here, or null when a game cannot start. `rules` overrides S.rules when given.
+  function simulate(S, rules) {
+    const C = { v: S.v, seq: S.seq, screen: 'setup', players: S.players.map((p) => ({ id: p.id, name: p.name, here: p.here })), rules: (rules || S.rules).map((r) => Object.assign({}, r, { ids: r.ids.slice() })), settings: Object.assign({}, S.settings, { warnSec: 0, repeatSec: 0 }), game: null, carry: null };
+    let T = 0; if (!startGame(C, T).ok) return null;
+    const g = C.game; let guard = 0;
+    while (!g.ended && guard++ < 500) { T += 30000; tick(C, T); if (g.pending) execute(C, T); if (g.breakPending) nextPeriod(C, T); }
+    const out = {}; [...activeIds(C)].forEach((id) => { out[id] = played(C, id); });
+    return out;
+  }
+  // Plain-English verdict on a rule set for today's kids: the minutes range and who ends up lowest.
+  function fairness(S, rules) {
+    const m = simulate(S, rules); if (!m) return null;
+    const ids = Object.keys(m); const vals = ids.map((id) => m[id]);
+    const lo = Math.min(...vals), hi = Math.max(...vals);
+    return { minutes: m, lo, hi, spread: hi - lo, lowest: ids.filter((id) => m[id] === lo), ideal: Math.round(S.settings.periods * S.settings.periodSec * S.settings.fieldSize / ids.length) };
+  }
+
   // ---------- Roster import and export (names only; ids are rebuilt on import) ----------
   function exportRoster(S) {
     return {
@@ -552,5 +570,5 @@
   return { STATE_VERSION, LIMITS, MAX_PLAYERS, MAX_RULES, defaults, migrate, findByName, nameOf, activeIds, violations, played, stint, rest, isFresh, freshMatters,
     pinnedByRule, plan, rotationPlan, planSpeech, undo, startGame, execute, dismissPending, subNow, fixNow, toggleLock, outEarly, returnNow, toBench,
     doneToday, checkLater, manualSwap, movePlayer, setLineup, offNow, setFieldSize, fixPlan, usableCarry, carryPreview, addPlayer, arrive, addLate, removePlayer, addRule, togglePlay, nextPeriod, endGame, newGame, tick, markSpoken,
-    importRoster, encodeRoster, decodeRoster };
+    importRoster, encodeRoster, decodeRoster, simulate, fairness };
 });
