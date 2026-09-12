@@ -427,8 +427,8 @@
   function renderTimers() {
     const g = S.game; if (!g || S.screen !== 'game') return;
     const t = now();
-    $('clock').textContent = mmss(S.settings.periodSec - g.t);
-    $('periodLbl').textContent = (S.settings.periods === 2 ? 'H' : 'Q') + g.period + ' of ' + S.settings.periods + (g.running ? '' : ' · paused');
+    $('clock').textContent = mmss(g.t); // counts up, like the match clock
+    $('periodLbl').textContent = (S.settings.periods === 2 ? 'H' : 'Q') + g.period + ' of ' + S.settings.periods + ' · to ' + mmss(S.settings.periodSec) + (g.running ? '' : ' · paused');
     const st = $('subTimer'); if (st) st.textContent = g.pending ? (g.pending.type === 'rotation' ? 'timer resets on Done' : '') : 'in ' + mmss(g.subT);
     g.field.forEach((id) => { const el = ui.els.get(id); if (el) el.textContent = mins(E.played(S, id)) + ' played · on for ' + mmss(E.stint(S, id)); });
     g.bench.forEach((id) => { const el = ui.els.get(id); if (el) el.textContent = mins(E.played(S, id)) + ' played · resting ' + mmss(E.rest(S, id)); });
@@ -467,7 +467,7 @@
   function closePocket() { ui.pocket = false; render(); }
   function renderPocket() {
     const g = S.game; if (!g || !ui.pocket || !$('pclock')) return;
-    $('pclock').textContent = mmss(S.settings.periodSec - g.t);
+    $('pclock').textContent = mmss(g.t);
     const p = g.pending || (ui.view && ui.view.move);
     const key = p ? p.offs.join(',') + '>' + p.ons.join(',') : '';
     if (key !== ui.pocketKey) { ui.pocketKey = key; $('pcall').innerHTML = p ? '<div class="pairs">' + p.pairs.map(pairLine).join('') + '</div>' : '<span>No swap available</span>'; }
