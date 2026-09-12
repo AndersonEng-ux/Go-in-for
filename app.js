@@ -4,7 +4,7 @@
   const E = window.Engine;
   const KEY = 'goinfor_v2';
   const OLD_KEY = 'goinfor_v1';
-  const APP_VERSION = '1.6.0';
+  const APP_VERSION = '1.6.1';
   const SAVE_EVERY_MS = 5000;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -523,7 +523,7 @@
       btn('Roster & rules', 'quiet', () => { ui.sheet = false; commit(() => { S.screen = 'setup'; }); }, { icon: 'roster' }),
       btn('Help & setup', 'quiet', () => { ui.sheet = false; commit(() => { S.screen = 'help'; }); }, { icon: 'help' }),
       btn('End game', 'danger', () => { if (!confirm('End the game and show minutes?')) return; ui.sheet = false; commit(() => E.endGame(S, now())); }, { icon: 'flag' }),
-      btn('Close', 'primary', closeSheet, { icon: 'close' }));
+      btn('Close', 'quiet', closeSheet, { icon: 'close' }));
     sh.appendChild(panel); sh.addEventListener('click', (e) => { if (e.target === sh) closeSheet(); }); ov.appendChild(sh);
     const first = panel.querySelector('button:not([disabled])'); if (first) first.focus();
   }

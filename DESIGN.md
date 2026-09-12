@@ -57,3 +57,24 @@ Enabled: as specified. Pressed: `transform: scale(.97)` over 120ms (round main: 
 ## Motion
 
 Durations 120ms (press) and 180ms (color, border). Reduced motion turns both off. No looping animation while a call is live; the state change itself is the signal.
+
+## Buttons
+
+One shape (pill, 999px radius), one weight (600; 700 on big and chips), three heights. Labels are sentence case, never uppercase, except the 12px labels under round controls and inside tile action chips.
+
+| Kind | Look | Height | Where |
+|---|---|---|---|
+| Primary | orange fill, white label, glow on big | 48 / 58 big | Start, Save rule, one per screen |
+| Secondary | `--surface-2` fill | 48 / 40 sm | Add, Load, Swap now, Copy link |
+| Quiet | white fill, hairline | 48 / 40 sm | Say it, Leave it, Cancel, Edit team, Close |
+| Danger | red-soft fill, red text | 48 | End game |
+| Icon | quiet, 44px square, label in `aria-label` | 44 | Remove rule |
+| Segmented | one `--surface-2` track, options transparent, selected raised white with shadow | 40 inside 48 track | 4v4..7v7, halves/quarters, 1/2/3 per swap, heads-up, repeat, Max 1/2/3 |
+| Toggle | secondary; on = blue fill | 44 | Speak the calls |
+| Chip | pill, display face 17px; selected = ink fill | 44 | pick kids for a rule |
+| Attendance pill | white hairline pill with a dot; here = blue-soft | 48 | Who's here |
+| List row | white hairline, 14px radius, left-aligned | 48 / 52 | rule kinds, menu sheet |
+| Round control | 54px circle white with shadow; main 76px orange with glow; label under | | game screen bottom |
+| Tile action | 40px pill chip, uppercase 12px, icon + label | 40 | Sub, Goalie, Left, Pick |
+
+Pressed: scale .97 (round main .94). Disabled: 45% opacity. Focus: 3px blue ring, 2px offset.
