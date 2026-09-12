@@ -8,7 +8,7 @@ const NOW = 1_000_000;
 import { COACH as FIX } from './fixtures.mjs';
 function team(names, rules, settings) {
   const S = E.defaults();
-  E.importRoster(S, { players: names, rules: (rules || []).map((r) => ({ type: r.type, min: r.min, names: r.names })), settings });
+  E.importRoster(S, { players: names, rules: (rules || []).map((r) => ({ type: r.type, min: r.min, max: r.max, names: r.names })), settings });
   const id = (n) => E.findByName(S, n).id;
   return { S, id, name: (x) => E.nameOf(S, x) };
 }
@@ -347,8 +347,9 @@ test('drag: a move clears the pending call; a due swap is offered again around t
   assert.equal(g.pending.type, 'rotation');
   const on = g.pending.ons[0];
   E.movePlayer(t.S, on, 'field', NOW + 1000);
-  assert.ok(g.pending && g.pending.type === 'rotation', 'still due, so offered again');
-  assert.ok(!g.pending.ons.includes(on));
+  assert.ok(g.pending && g.pending.type === 'fix' && g.pending.offs.length === 1 && g.pending.ons.length === 0, 'seven on: a fix comes first');
+  E.execute(t.S, NOW + 1000);
+  assert.ok(g.pending && g.pending.type === 'rotation', 'then the due rotation is offered again');
   // A kid off to the side can be dragged straight onto the field.
   const away = g.field[0]; E.outEarly(t.S, away, false, NOW + 1000);
   assert.ok(g.away.some((a) => a.id === away));
@@ -464,7 +465,59 @@ test('who is on: set the six on the field from scratch', () => {
   assert.equal(E.stint(t.S, stay), stayStint, 'a kid who stayed on keeps their stint');
   assert.equal(E.stint(t.S, g.bench[0]) >= 0 && E.rest(t.S, g.bench[g.bench.length - 1]), 0, 'a kid who came off starts resting now');
   assert.ok(E.isFresh(t.S, on[2]), 'a kid who came on is fresh');
-  assert.equal(g.pending, null); assert.equal(g.history.length, hist + 1);
+  assert.ok(!g.pending || g.pending.type === 'fix', 'no call unless the six break a rule'); assert.equal(g.history.length, hist + 1);
   assert.equal(E.setLineup(t.S, ['nope'], NOW), false);
   assert.equal(E.undo(t.S), true); assert.ok(g.away.length === 1);
+});
+
+
+test('limit rule: at most N of a group on at once', () => {
+  const t = team(COACH.names, COACH.rules.concat({ type: 'limit', max: 2, names: ['Lydon', 'Liam', 'Foster', 'Abe'] }));
+  assert.equal(t.S.rules.length, 5); assert.equal(t.S.rules[4].max, 2);
+  E.startGame(t.S, NOW); const g = t.S.game;
+  E.setLineup(t.S, ['Lydon', 'Liam', 'Foster', 'Craig', 'Drew', 'Chase'].map(t.id), NOW);
+  assert.ok(E.violations(t.S, g.field, []).some((v) => /More than 2/.test(v)));
+  assert.ok(g.pending && g.pending.type === 'fix', 'a fix call is offered');
+  assert.equal(g.pending.offs.length, 1); assert.ok(['Lydon', 'Liam', 'Foster'].includes(t.name(g.pending.offs[0])));
+  E.execute(t.S, NOW); assert.deepEqual(E.violations(t.S, g.field, []), []);
+  // round trips through the roster link and survives migrate
+  const S2 = E.defaults(); E.importRoster(S2, E.decodeRoster(E.encodeRoster(t.S)));
+  assert.equal(S2.rules.filter((r) => r.type === 'limit' && r.max === 2).length, 1);
+  assert.equal(E.addRule(t.S, 'limit', [t.id('Knox'), t.id('Drew')], 2), null, 'a limit needs more kids than the max');
+});
+
+test('fix it: two kids walk off within a minute, and a kid leaves during a due swap', () => {
+  const t = team(COACH.names, COACH.rules);
+  E.startGame(t.S, NOW); const g = t.S.game;
+  const a = g.field[3], b = g.field[4];
+  E.outEarly(t.S, a, false, NOW); assert.equal(g.pending.type, 'fill'); assert.equal(g.pending.ons.length, 1); assert.match(g.pending.note, new RegExp(t.name(a) + ' came off'));
+  E.outEarly(t.S, b, false, NOW + 40 * 1000);
+  assert.equal(g.field.length, 4); assert.equal(g.pending.type, 'fill'); assert.equal(g.pending.ons.length, 2, 'the fill grows to two');
+  E.execute(t.S, NOW + 40 * 1000); assert.equal(g.field.length, 6); assert.deepEqual(E.violations(t.S, g.field, []), []);
+  // a kid leaves while a rotation is on screen: the fill comes first, then the rotation
+  g.subT = 1; E.tick(t.S, NOW + 41 * 1000); assert.equal(g.pending.type, 'rotation');
+  const c = g.field.find((id) => !g.pending.offs.includes(id));
+  E.outEarly(t.S, c, false, NOW + 42 * 1000);
+  assert.equal(g.pending.type, 'fill'); assert.equal(g.pending.ons.length, 1);
+  E.execute(t.S, NOW + 42 * 1000); assert.equal(g.field.length, 6);
+  assert.ok(g.pending && g.pending.type === 'rotation', 'rotation re-offered after the fill');
+  assert.equal(g.subT, 0, 'a fill does not reset the swap timer');
+});
+
+test('off now and live field size', () => {
+  const t = team(COACH.names, COACH.rules);
+  E.startGame(t.S, NOW); const g = t.S.game;
+  const k = g.field[2];
+  assert.equal(E.offNow(t.S, k, NOW), true); assert.equal(g.pending.type, 'fix'); assert.deepEqual(g.pending.offs, [k]); assert.equal(g.pending.ons.length, 1);
+  E.execute(t.S, NOW); assert.ok(g.bench.includes(k)); assert.equal(g.subT, t.S.settings.intervalSec, 'timer untouched');
+  assert.equal(E.offNow(t.S, k, NOW), false, 'not on the field');
+  // 6v6 -> 4v4: two come off; 4v4 -> 5v5: one goes in
+  E.setFieldSize(t.S, 4, NOW); assert.equal(g.pending.type, 'fix'); assert.equal(g.pending.offs.length, 2); assert.equal(g.pending.ons.length, 0);
+  E.execute(t.S, NOW); assert.equal(g.field.length, 4); assert.deepEqual(E.violations(t.S, g.field, []), []);
+  E.setFieldSize(t.S, 5, NOW); assert.equal(g.pending.type, 'fill'); assert.equal(g.pending.ons.length, 1);
+  E.execute(t.S, NOW); assert.equal(g.field.length, 5);
+  assert.equal(E.setFieldSize(t.S, 99, NOW), true); assert.equal(t.S.settings.fieldSize, 7);
+  // Who's on with five picked offers the sixth
+  E.setFieldSize(t.S, 6, NOW); E.execute(t.S, NOW);
+  E.setLineup(t.S, g.field.slice(0, 5), NOW); assert.equal(g.pending.type, 'fill'); assert.equal(g.pending.ons.length, 1);
 });

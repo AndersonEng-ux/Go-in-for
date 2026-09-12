@@ -46,6 +46,14 @@ check(!(await p.evaluate(() => location.hash)), 'hash cleared after import');
 await p.evaluate(() => { const S = window.__goinfor.state; S.players = S.players.slice(0, 6); });
 await p.fill('#pasteLink', 'https://example.test/#roster=' + enc); await p.click('#pasteBtn'); await p.waitForTimeout(400);
 s = await st(); check(s.players.length === 11, 'paste box loaded the roster');
+// Add a "never more than 2 of a group on" rule from the setup screen
+await p.click('#ruleAdd'); await p.waitForTimeout(150);
+await p.click('#ruleKind .btn:has-text("Never too many")'); await p.waitForTimeout(150);
+await p.click('#ruleMin .btn:has-text("At most 2")'); await p.waitForTimeout(100);
+for (const n of ['Lydon', 'Liam', 'Foster', 'Abe']) { await p.click('#rulePick .btn:has-text("' + n + '")'); await p.waitForTimeout(60); }
+await p.click('#ruleSave'); await p.waitForTimeout(200); s = await st();
+check(s.rules.length === 5 && s.rules[4].type === 'limit' && s.rules[4].max === 2 && s.rules[4].ids.length === 4, 'limit rule saved from the setup screen');
+check((await p.$eval('#ruleList', (e) => e.textContent)).includes('Never more than 2'), 'limit rule listed');
 // Start the game
 await p.click('#startBtn'); await p.waitForTimeout(400);
 s = await st();
@@ -102,9 +110,9 @@ check(s.game.away.length === 0, 'off-to-the-side list cleared');
 // Manual swap by tapping
 const f1 = (await p.$$('#fieldList .prow'))[1]; const b1 = (await p.$$('#benchList .prow'))[0];
 const fName = await rowName(f1); const bName = await rowName(b1);
-await f1.click(); await p.waitForTimeout(150); await (await p.$$('#benchList .prow'))[0].click(); await p.waitForTimeout(250);
+await (await f1.$('.pname')).click(); await p.waitForTimeout(150); await (await (await p.$$('#benchList .prow'))[0].$('.pname')).click(); await p.waitForTimeout(250);
 const fieldNow = await names('#fieldList');
-check(fieldNow.includes(bName) && !fieldNow.includes(fName), 'tap-to-swap moved ' + bName + ' in for ' + fName);
+s = await st(); check(fieldNow.includes(bName) && !fieldNow.includes(fName), 'tap-to-swap moved ' + bName + ' in for ' + fName + ' [field: ' + fieldNow.join(',') + '; pending: ' + (s.game.pending ? s.game.pending.type : 'none') + '; sel banner: ' + (await p.$eval('#banners', (e) => e.innerText)).slice(0, 80) + ']');
 
 // Menu: long-press opens, undo works
 await hold('#menuBtn', 700); await p.waitForTimeout(250);
@@ -133,7 +141,7 @@ const dragTo = async (fromSel, toSel) => {
 };
 const dragged = (await names('#benchList'))[0];
 await dragTo('#benchList .prow:first-child .grip', '#fieldZone h2');
-s = await st(); check(s.game.field.length === 7 && s.game.bench.length === 4, 'drag moved ' + dragged + ' onto the field with no swap (' + s.game.field.length + ' on)');
+s = await st(); check(s.game.field.length === 7 && s.game.bench.length === 4, 'drag moved ' + dragged + ' onto the field with no swap (' + s.game.field.length + ' on, ' + s.game.bench.length + ' bench, away ' + s.game.away.length + ')');
 check((await p.$eval('#banners', (e) => e.innerText)).includes('7 on the field'), 'too-many banner shows');
 check((await p.$eval('#planCard', (e) => e.textContent)).includes('comes off'), 'plan offers who comes off');
 check(await p.$('.prow.ghost') === null, 'ghost removed after drop');
@@ -147,6 +155,21 @@ await dragTo('#fieldList .prow:first-child .grip', '#benchZone h2');
 s = await st(); check(s.game.field.length === 6, 'drag back to the bench leaves six on');
 // A tap on the grip is not a move
 await p.click('#benchList .prow:first-child .grip'); await p.waitForTimeout(150); s = await st(); check(s.game.field.length === 6, 'a tap on the grip moves nobody');
+
+// Live field size: 4v4 takes two off, back to 6v6 sends two in
+await p.click('#fieldSizeSeg .btn:nth-child(1)'); await p.waitForTimeout(250); s = await st();
+check(s.settings.fieldSize === 4 && s.game.pending && s.game.pending.type === 'fix' && s.game.pending.offs.length - s.game.pending.ons.length === 2, '4v4: fix call nets two off [size ' + s.settings.fieldSize + ', pending ' + (s.game.pending ? s.game.pending.type + ' offs ' + s.game.pending.offs.length + ' ons ' + s.game.pending.ons.length + ' note ' + s.game.pending.note : 'none') + ', field ' + s.game.field.length + ']');
+await p.click('#goBtn'); await p.waitForTimeout(250); s = await st(); check(s.game.field.length === 4, 'four on the field');
+await p.click('#fieldSizeSeg .btn:nth-child(3)'); await p.waitForTimeout(250); s = await st();
+check(s.settings.fieldSize === 6 && s.game.pending && s.game.pending.type === 'fill' && s.game.pending.ons.length === 2, '6v6: send-in call brings two on');
+await p.click('#goBtn'); await p.waitForTimeout(250); s = await st(); check(s.game.field.length === 6, 'six on again');
+// Sub: take a named kid off now, then Leave it
+const subName = (await names('#fieldList'))[0];
+await p.click('#fieldList .prow:first-child button[title^="Take"]'); await p.waitForTimeout(250); s = await st();
+check(s.game.pending && s.game.pending.type === 'fix' && s.players.find((x) => x.id === s.game.pending.offs[0]).name === subName && s.game.pending.ons.length === 1, 'Sub offers a swap for ' + subName);
+await p.click('#planCard button:has-text("Leave it")'); await p.waitForTimeout(250); s = await st();
+check(!s.game.pending && (await names('#fieldList'))[0] === subName, 'Leave it keeps ' + subName + ' on with no call');
+await shot('06c-sub');
 
 // Who's on right now: pick six, everyone else to the bench
 await p.click('#whoOnBtn'); await p.waitForTimeout(250);

@@ -9,7 +9,7 @@
   'use strict';
 
   const STATE_VERSION = 3;
-  const RULE_TYPES = ['apart', 'notOffTogether', 'keep'];
+  const RULE_TYPES = ['apart', 'notOffTogether', 'keep', 'limit']; // limit = at most `max` of a group on at once
   const MAX_PLAYERS = 30, MAX_RULES = 20, MAX_NAME = 40;
   const cleanName = (raw) => (typeof raw === 'string' ? raw.replace(/\s+/g, ' ').trim().slice(0, MAX_NAME) : '');
   const CARRY_TTL_MS = 12 * 3600 * 1000; // a carried-over lineup is for the next game today, not next week
@@ -60,8 +60,8 @@
     }
     const known = new Set(S.players.map((p) => p.id));
     S.rules = S.rules.filter((r) => r && RULE_TYPES.includes(r.type) && Array.isArray(r.ids) && typeof r.id === 'string')
-      .map((r) => ({ id: r.id, type: r.type, min: r.type === 'keep' ? cleanMin(r.min, r.ids.length) : undefined, ids: r.ids.filter((id) => known.has(id)) }))
-      .filter((r) => r.ids.length >= (r.type === 'keep' ? 1 : 2)).slice(0, MAX_RULES);
+      .map((r) => ({ id: r.id, type: r.type, min: r.type === 'keep' ? cleanMin(r.min, r.ids.length) : undefined, max: r.type === 'limit' ? cleanMin(r.max, r.ids.length) : undefined, ids: r.ids.filter((id) => known.has(id)) }))
+      .filter((r) => r.ids.length >= (r.type === 'keep' ? 1 : 2) && (r.type !== 'limit' || r.ids.length > r.max)).slice(0, MAX_RULES);
     const isArr = (v) => Array.isArray(v);
     const ids = (v) => (isArr(v) ? v.filter((id) => known.has(id)) : []);
     const secMap = (m) => { const o = {}; if (m && typeof m === 'object') Object.keys(m).forEach((id) => { if (known.has(id) && Number.isFinite(Number(m[id]))) o[id] = Math.max(0, Number(m[id])); }); return o; };
@@ -102,7 +102,7 @@
   // Rules narrowed to the kids who are actually at the game (rules about absent kids are ignored).
   function liveRules(S) {
     const act = activeIds(S);
-    return S.rules.map((r) => ({ type: r.type, min: r.min, live: r.ids.filter((id) => act.has(id)) })).filter((r) => r.live.length > 0);
+    return S.rules.map((r) => ({ type: r.type, min: r.min, max: r.max, live: r.ids.filter((id) => act.has(id)) })).filter((r) => r.live.length > 0);
   }
   // Plain-English problems with a lineup. `offs` are the kids leaving in this move.
   function violations(S, fieldIds, offs) { return checkLineup(S, liveRules(S), new Set(fieldIds), offs || []); }
@@ -116,6 +116,10 @@
         const need = Math.min(r.min || 1, live.length);
         const on = live.filter((id) => set.has(id)).length;
         if (on < need) out.push(need === 1 ? 'Nobody from ' + namesOf(S, live) + ' is on' : 'Fewer than ' + need + ' of ' + namesOf(S, live) + ' are on');
+      } else if (r.type === 'limit') {
+        const max = Math.min(r.max || 1, live.length);
+        const on = live.filter((id) => set.has(id)).length;
+        if (on > max) out.push('More than ' + max + ' of ' + namesOf(S, live) + ' are on');
       } else if (r.type === 'notOffTogether') {
         if (live.length === 2 && live.every((id) => offs.includes(id))) out.push(namesOf(S, live) + ' would come off together');
       }
@@ -235,13 +239,34 @@
   }
   const resetSubTimer = (S) => { S.game.subT = S.settings.intervalSec; S.game.warned = false; };
   function setPending(S, type, note, p, now) {
-    S.game.pending = Object.assign({ type, note: [note, p.note].filter(Boolean).join(' '), since: now, spoken: 0 }, p);
+    S.game.pending = Object.assign({}, p, { type, note: [note, p.note].filter(Boolean).join(' '), since: now, spoken: 0 });
   }
   function offerRotation(S, note, now) {
     const p = rotationPlan(S); if (!p) return false;
     setPending(S, 'rotation', note || '', p, now); return true;
   }
-  // Run after every lineup change: drop a pending call the change made stale, then offer a due rotation.
+  // What is wrong with the field right now, and the smallest move that puts it right. Null when nothing is wrong.
+  // Short: bring kids on. Over: take kids off. Rule broken: a like-for-like swap, one kid if possible.
+  function fixPlan(S) {
+    const g = S.game; const short = S.settings.fieldSize - g.field.length;
+    if (short > 0) {
+      const n = Math.min(short, g.bench.length); if (n <= 0) return null;
+      const p = plan(S, { on: n, off: 0, shrink: true }) || plan(S, { on: Math.min(n + 1, g.bench.length), off: 1, shrink: true });
+      if (p) { p.type = 'fill'; p.note = 'Playing short. Send in the next kid' + (p.ons.length > 1 ? 's' : '') + '.'; }
+      return p;
+    }
+    if (short < 0) {
+      const p = plan(S, { on: 0, off: -short, shrink: true }) || plan(S, { on: 1, off: 1 - short, shrink: true });
+      if (p) { p.type = 'fix'; p.note = 'Too many on the field.'; }
+      return p;
+    }
+    const v = violations(S, g.field, []); if (!v.length) return null;
+    const k = Math.min(2, g.bench.length);
+    const p = (k >= 1 && plan(S, { on: 1, off: 1, shrink: false, protectFresh: true })) || (k >= 1 && plan(S, { on: 1, off: 1, shrink: false })) || (k >= 2 && plan(S, { on: 2, off: 2, shrink: false }));
+    if (p) { p.type = 'fix'; p.note = v.join('. ') + '.'; }
+    return p;
+  }
+  // Run after every lineup change: drop a pending call the change made stale, then offer a fix if the field is wrong, else a due rotation.
   function settle(S, now) {
     const g = S.game; const p = g.pending;
     if (p) {
@@ -250,7 +275,11 @@
       const stale = p.offs.some((id) => !g.field.includes(id) || g.locked.includes(id)) || p.ons.some((id) => !from.includes(id));
       if (stale) g.pending = null;
     }
-    if (!g.pending && g.subT <= 0 && !g.breakPending) offerRotation(S, '', now);
+    if (!g.pending) {
+      const f = g.fixMuted === fieldKey(S) ? null : fixPlan(S);
+      if (f) setPending(S, f.type, '', f, now);
+      else if (g.subT <= 0 && !g.breakPending) offerRotation(S, '', now);
+    }
   }
   // ---------- Carrying a lineup from one game to the next ----------
   // The carry-over from the last game, if the coach wants it and it is from today.
@@ -307,11 +336,16 @@
   }
   // Coach waved off the pending call. A skipped timed swap restarts the timer; anything else just clears.
   function dismissPending(S, now) {
-    const g = S.game; const wasRotation = g.pending && g.pending.type === 'rotation';
-    g.pending = null;
-    if (wasRotation) resetSubTimer(S); else settle(S, now);
+    const g = S.game; const p = g.pending; g.pending = null;
+    if (p && p.type === 'rotation') { resetSubTimer(S); return; }
+    // Waving off a fix means "I know, leave it": no fix is offered again until the field changes.
+    if (p && (p.type === 'fix' || p.type === 'fill')) g.fixMuted = fieldKey(S);
+    settle(S, now);
   }
+  const fieldKey = (S) => S.game.field.slice().sort().join(',') + '|' + S.settings.fieldSize;
   function subNow(S, now) { S.game.pending = null; return offerRotation(S, '', now); }
+  // Coach asks for the fix now (after waving one off, or from the banner): the field's fix if it needs one, else nothing.
+  function fixNow(S, now) { const g = S.game; g.pending = null; g.fixMuted = null; settle(S, now); return !!g.pending; }
   function toggleLock(S, id, now) {
     const g = S.game; g.locked = g.locked.includes(id) ? g.locked.filter((x) => x !== id) : g.locked.concat(id);
     if (g.pending && g.pending.type === 'rotation') g.pending = null; // the plan may change; settle re-offers if due
@@ -322,11 +356,10 @@
     detach(g, id);
     g.offSince[id] = g.total;
     g.away.push({ id, since: now, checkAt: now + S.settings.checkBackSec * 1000, status: 'left', prompted: false });
+    // Filling the hole comes before any timed swap that was on screen; the rotation re-offers after the fill if still due.
+    if (!fromBench && g.pending && (g.pending.type === 'rotation' || g.pending.type === 'fill')) g.pending = null;
     settle(S, now);
-    if (!fromBench && !g.pending) {
-      const p = plan(S, { on: 1, off: 0, shrink: false });
-      if (p) setPending(S, 'fill', nameOf(S, id) + ' came off. Send in the next kid.', p, now);
-    }
+    if (!fromBench && g.pending && g.pending.type === 'fill') g.pending.note = nameOf(S, id) + ' came off. ' + g.pending.note;
   }
   function returnNow(S, id, now) {
     const g = S.game; const full = g.field.length >= S.settings.fieldSize;
@@ -348,6 +381,20 @@
     g.field.push(otherP); g.bench.push(fieldP); g.onSince[otherP] = g.total; g.offSince[fieldP] = g.total;
     g.pending = null;
     settle(S, now);
+  }
+  // Coach wants a kid off the field now: the plan names who replaces them (nobody, if the bench is empty).
+  function offNow(S, id, now) {
+    const g = S.game; if (!g.field.includes(id)) return false;
+    const p = plan(S, { on: Math.min(1, g.bench.length), off: 1, forceOff: [id], shrink: true });
+    if (!p) return false;
+    setPending(S, 'fix', nameOf(S, id) + ' off now.', p, now); return true;
+  }
+  // Match the other side: 4v4 while they have four, 6v6 once everyone shows up. A fix call follows if the field is now short or over.
+  function setFieldSize(S, n, now) {
+    n = Math.min(LIMITS.fieldSize[1], Math.max(LIMITS.fieldSize[0], Math.round(Number(n)) || 0)); if (!n) return false;
+    S.settings.fieldSize = n; const g = S.game;
+    if (g && !g.ended) { if (g.pending && g.pending.type !== 'return') g.pending = null; settle(S, now); }
+    return true;
   }
   // Coach fixes the lineup by hand (drag): put a kid on the field or the bench, no pairing needed. The plan re-forms around it.
   function movePlayer(S, id, to, now) {
@@ -394,15 +441,15 @@
     const g = S.game;
     if (g && !g.ended && activeIds(S).has(id)) return { ok: false, msg: nameOf(S, id) + ' is in the game. End the game first, or mark them Done for today.' };
     S.players = S.players.filter((x) => x.id !== id);
-    S.rules = S.rules.map((r) => Object.assign({}, r, { ids: r.ids.filter((x) => x !== id) })).filter((r) => r.ids.length >= (r.type === 'keep' ? 1 : 2));
+    S.rules = S.rules.map((r) => Object.assign({}, r, { ids: r.ids.filter((x) => x !== id) })).filter((r) => r.ids.length >= (r.type === 'keep' ? 1 : 2) && (r.type !== 'limit' || r.ids.length > r.max));
     return { ok: true };
   }
   function addRule(S, type, ids, min) {
     if (!RULE_TYPES.includes(type) || !Array.isArray(ids) || S.rules.length >= MAX_RULES) return null;
     ids = ids.filter((id, i) => typeof id === 'string' && ids.indexOf(id) === i && S.players.some((p) => p.id === id));
     const m = cleanMin(min, ids.length);
-    if (type === 'keep' ? ids.length < m : ids.length !== 2) return null;
-    const r = { id: uid(S, 'r'), type, ids: ids.slice() }; if (type === 'keep') r.min = m;
+    if (type === 'keep' ? ids.length < m : type === 'limit' ? ids.length <= m : ids.length !== 2) return null;
+    const r = { id: uid(S, 'r'), type, ids: ids.slice() }; if (type === 'keep') r.min = m; if (type === 'limit') r.max = m;
     S.rules.push(r); return r;
   }
   function togglePlay(S, now) { const g = S.game; if (g.breakPending || g.ended) return; g.running = !g.running; g.lastTick = now; }
@@ -452,7 +499,7 @@
   function exportRoster(S) {
     return {
       players: S.players.map((p) => p.name),
-      rules: S.rules.map((r) => ({ type: r.type, min: r.min, names: r.ids.map((id) => nameOf(S, id)) })),
+      rules: S.rules.map((r) => ({ type: r.type, min: r.min, max: r.max, names: r.ids.map((id) => nameOf(S, id)) })),
       settings: S.settings,
     };
   }
@@ -465,7 +512,7 @@
     const tmp = { players: [], rules: [], seq: 100 };
     data.players.forEach((n) => addPlayer(tmp, n));
     if (tmp.players.length === 0) return false;
-    rules.forEach((r) => { const ids = r.names.map((n) => findByName(tmp, n)).filter(Boolean).map((p) => p.id); addRule(tmp, r.type, ids, r.min); });
+    rules.forEach((r) => { const ids = r.names.map((n) => findByName(tmp, n)).filter(Boolean).map((p) => p.id); addRule(tmp, r.type, ids, r.type === 'limit' ? r.max : r.min); });
     if (S.carry) { // keep the carried lineup: the ids are rebuilt, so translate by name
       const byName = (id) => { const p = findByName(tmp, nameOf(S, id)); return p ? p.id : null; };
       const map = (m) => { const o = {}; Object.keys(m || {}).forEach((id) => { const n = byName(id); if (n) o[n] = m[id]; }); return o; };
@@ -495,7 +542,7 @@
   }
 
   return { STATE_VERSION, LIMITS, MAX_PLAYERS, MAX_RULES, defaults, migrate, findByName, nameOf, activeIds, violations, played, stint, rest, isFresh, freshMatters,
-    pinnedByRule, plan, rotationPlan, planSpeech, undo, startGame, execute, dismissPending, subNow, toggleLock, outEarly, returnNow, toBench,
-    doneToday, checkLater, manualSwap, movePlayer, setLineup, usableCarry, carryPreview, addPlayer, arrive, addLate, removePlayer, addRule, togglePlay, nextPeriod, endGame, newGame, tick, markSpoken,
+    pinnedByRule, plan, rotationPlan, planSpeech, undo, startGame, execute, dismissPending, subNow, fixNow, toggleLock, outEarly, returnNow, toBench,
+    doneToday, checkLater, manualSwap, movePlayer, setLineup, offNow, setFieldSize, fixPlan, usableCarry, carryPreview, addPlayer, arrive, addLate, removePlayer, addRule, togglePlay, nextPeriod, endGame, newGame, tick, markSpoken,
     importRoster, encodeRoster, decodeRoster };
 });

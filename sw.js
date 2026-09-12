@@ -1,5 +1,5 @@
 /* Go In For service worker: cache the whole app on install, serve from cache, refresh in the background. */
-const VERSION = 'goinfor-v3';
+const VERSION = 'goinfor-v4';
 const SHELL = [
   './', './index.html', './styles.css', './app.js', './engine.js', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-512-maskable.png', './icons/apple-touch-icon.png',

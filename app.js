@@ -4,7 +4,7 @@
   const E = window.Engine;
   const KEY = 'goinfor_v2';
   const OLD_KEY = 'goinfor_v1';
-  const APP_VERSION = '1.2.0';
+  const APP_VERSION = '1.3.0';
   const SAVE_EVERY_MS = 5000;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -167,8 +167,9 @@
     apart: { kind: 'Not on the field together', hint: 'Pick two kids who should never be on the field at the same time.' },
     notOffTogether: { kind: 'Never come off at the same time', hint: 'Pick two kids who should never be swapped off in the same move.' },
     keep: { kind: 'Always keep some of a group on', hint: 'Pick the group, like your defenders. The plan never lets them all come off at once.' },
+    limit: { kind: 'Never too many of a group on', hint: 'Pick the group and how many can be on at once. Good for kids who need a stronger teammate beside them.' },
   };
-  const ruleKind = (r) => (r.type === 'keep' ? 'Always keep at least ' + (r.min || 1) + ' on' : RULE_TEXT[r.type].kind);
+  const ruleKind = (r) => (r.type === 'keep' ? 'Always keep at least ' + (r.min || 1) + ' on' : r.type === 'limit' ? 'Never more than ' + (r.max || 1) + ' on at once' : RULE_TEXT[r.type].kind);
 
   // ---------- Setup screen ----------
   function renderSetup() {
@@ -211,7 +212,7 @@
     const rl = $('ruleList'); rl.innerHTML = '';
     S.rules.forEach((r) => {
       const row = document.createElement('div'); row.className = 'rule';
-      const txt = document.createElement('div'); txt.innerHTML = '<div class="kind">' + esc(ruleKind(r)) + '</div><div class="who">' + esc(r.ids.map((id) => E.nameOf(S, id)).join(r.type === 'keep' ? ', ' : ' + ')) + '</div>';
+      const txt = document.createElement('div'); txt.innerHTML = '<div class="kind">' + esc(ruleKind(r)) + '</div><div class="who">' + esc(r.ids.map((id) => E.nameOf(S, id)).join(r.type === 'keep' || r.type === 'limit' ? ', ' : ' + ')) + '</div>';
       row.append(txt, btn('Remove', 'sm quiet', () => { S.rules = S.rules.filter((x) => x.id !== r.id); save(); renderSetup(); toast('Rule removed'); }, { title: 'Remove rule: ' + ruleKind(r), icon: 'trash' }));
       rl.appendChild(row);
     });
@@ -219,11 +220,13 @@
     if (ruleDraft.open) {
       seg($('ruleKind'), Object.keys(RULE_TEXT).map((k) => ({ label: RULE_TEXT[k].kind, value: k })), ruleDraft.type, (v) => { ruleDraft.type = v; ruleDraft.ids = []; renderSetup(); });
       $('ruleHint').textContent = RULE_TEXT[ruleDraft.type].hint;
-      $('ruleMinWrap').hidden = ruleDraft.type !== 'keep';
+      const grouped = ruleDraft.type === 'keep' || ruleDraft.type === 'limit';
+      $('ruleMinWrap').hidden = !grouped;
       if (ruleDraft.type === 'keep') seg($('ruleMin'), [{ label: 'At least 1 on', value: 1 }, { label: 'At least 2 on', value: 2 }], ruleDraft.min, (v) => { ruleDraft.min = v; renderSetup(); });
+      if (ruleDraft.type === 'limit') seg($('ruleMin'), [1, 2, 3].map((n) => ({ label: 'At most ' + n + ' on', value: n })), ruleDraft.min, (v) => { ruleDraft.min = v; renderSetup(); });
       const pick = $('rulePick'); pick.innerHTML = '';
-      S.players.forEach((p) => pick.appendChild(btn(p.name, '', () => { const max = ruleDraft.type === 'keep' ? 99 : 2; if (ruleDraft.ids.includes(p.id)) ruleDraft.ids = ruleDraft.ids.filter((x) => x !== p.id); else if (ruleDraft.ids.length < max) ruleDraft.ids.push(p.id); renderSetup(); }, { pressed: ruleDraft.ids.includes(p.id) })));
-      $('ruleSave').disabled = ruleDraft.type === 'keep' ? ruleDraft.ids.length < ruleDraft.min : ruleDraft.ids.length !== 2;
+      S.players.forEach((p) => pick.appendChild(btn(p.name, '', () => { const max = grouped ? 99 : 2; if (ruleDraft.ids.includes(p.id)) ruleDraft.ids = ruleDraft.ids.filter((x) => x !== p.id); else if (ruleDraft.ids.length < max) ruleDraft.ids.push(p.id); renderSetup(); }, { pressed: ruleDraft.ids.includes(p.id) })));
+      $('ruleSave').disabled = ruleDraft.type === 'keep' ? ruleDraft.ids.length < ruleDraft.min : ruleDraft.type === 'limit' ? ruleDraft.ids.length <= ruleDraft.min : ruleDraft.ids.length !== 2;
     }
     renderCarry();
     const resume = liveGame(); const cp = E.carryPreview(S, now());
@@ -265,7 +268,7 @@
     : '<div class="pair"><span class="off">' + esc(E.nameOf(S, pr.off)) + '</span><span class="for">comes off</span></div>';
   const pairsHtml = (p) => '<div class="pairs">' + p.pairs.map(pairLine).join('') + '</div>' + (p.note ? '<p class="note">' + esc(p.note) + '</p>' : '');
   const confirmSwap = () => { commit(() => E.execute(S, now())); toast('Swapped.', { label: 'Undo', fn: () => { if (E.undo(S)) { save(); render(); toast('Undone'); } } }); };
-  const swapNow = () => commit(() => { if (!E.subNow(S, now())) toast('No legal swap right now'); });
+  const swapNow = () => commit(() => { if (!E.fixNow(S, now()) && !E.subNow(S, now())) toast('No legal swap right now'); });
   const togglePlay = () => commit(() => E.togglePlay(S, now()));
   const doneBtn = (id) => btn('Done, they swapped', 'primary big', confirmSwap, { id, icon: 'check' });
   function returnNow(id) {
@@ -277,9 +280,10 @@
     const p = g.pending; const row = document.createElement('div'); row.className = 'row';
     if (p) {
       card.className = 'card plan live';
-      card.innerHTML = '<div class="eyebrow"><span>' + (p.type === 'rotation' ? 'Swap now' : p.type === 'fill' ? 'Send in' : 'Back in') + '</span><span class="num" id="subTimer"></span></div>' + pairsHtml(p);
+      const eyebrow = { rotation: 'Swap now', fill: 'Send in', fix: 'Fix it', return: 'Back in' }[p.type] || 'Swap now';
+      card.innerHTML = '<div class="eyebrow"><span>' + eyebrow + '</span><span class="num" id="subTimer"></span></div>' + pairsHtml(p);
       row.append(doneBtn('goBtn'), btn('Say it', 'quiet', () => { arm(); speak(callText(p), true); }, { icon: 'speak' }),
-        btn(p.type === 'rotation' ? 'Skip this one' : 'Never mind', 'quiet', () => commit(() => E.dismissPending(S, now())), { icon: p.type === 'rotation' ? 'skip' : 'close' }));
+        btn(p.type === 'rotation' ? 'Skip this one' : p.type === 'fix' || p.type === 'fill' ? 'Leave it' : 'Never mind', 'quiet', () => commit(() => E.dismissPending(S, now())), { icon: p.type === 'rotation' ? 'skip' : 'close' }));
     } else {
       card.className = 'card plan';
       card.innerHTML = '<div class="eyebrow"><span>Next swap</span><span class="num" id="subTimer"></span></div>' + (view.move ? pairsHtml(view.move) : '<p class="note">Nobody on the bench to swap in.</p>');
@@ -308,7 +312,7 @@
     const over = g.field.length - S.settings.fieldSize;
     if (over > 0) box.appendChild(banner('warn', '<div class="title">' + g.field.length + ' on the field for ' + S.settings.fieldSize + 'v' + S.settings.fieldSize + '</div><p>Drag ' + (over === 1 ? 'one kid' : over + ' kids') + ' to the bench, or use the swap above.</p>'));
     const v = E.violations(S, g.field, []);
-    if (v.length) box.appendChild(banner('warn', '<div class="title">Heads up</div><p>' + esc(v.join('. ')) + '. ' + SWAP_HINT + '</p>'));
+    if (v.length && !(g.pending && g.pending.type === 'fix')) box.appendChild(banner('warn', '<div class="title">Heads up</div><p>' + esc(v.join('. ')) + '. ' + (E.fixPlan(S) ? 'Tap Swap now for the fix.' : 'No legal fix with who is here. ' + SWAP_HINT) + '</p>'));
     if (ui.sel) box.appendChild(banner('info', '<p>' + esc(E.nameOf(S, ui.sel.id)) + ' selected. Tap who to swap with, or tap ' + esc(E.nameOf(S, ui.sel.id)) + ' again to cancel.</p>'));
   }
   function playerRow(id, list, view) {
@@ -328,7 +332,8 @@
     const acts = document.createElement('div'); acts.className = 'pacts';
     const act = (label, ic, title, fn, pressed) => { const b = btn(label, '', (e) => { e.stopPropagation(); fn(); }, { title, pressed, icon: ic }); b.className = 'icon' + (pressed ? ' active' : ''); return b; };
     if (list === 'field') {
-      acts.append(act('Goalie', 'shield', 'Goalie: keep ' + E.nameOf(S, id) + ' on the field', () => commit(() => E.toggleLock(S, id, now())), gk),
+      acts.append(act('Sub', 'swap', 'Take ' + E.nameOf(S, id) + ' off now; the plan names who goes in', () => { let ok = false; commit(() => { ok = E.offNow(S, id, now()); }); if (ok) speak(callText(S.game.pending)); else toast('No legal swap for ' + E.nameOf(S, id) + ' right now'); }),
+        act('Goalie', 'shield', 'Goalie: keep ' + E.nameOf(S, id) + ' on the field', () => commit(() => E.toggleLock(S, id, now())), gk),
         act('Left', 'out', E.nameOf(S, id) + ' came off on their own', () => { commit(() => E.outEarly(S, id, false, now())); const p = S.game.pending; speak(E.nameOf(S, id) + ' came off. ' + (p ? callText(p) : 'Nobody on the bench.')); }));
     } else {
       acts.append(act('In now', 'in', 'Put ' + E.nameOf(S, id) + ' in right away', () => returnNow(id)), act('Away', 'away', E.nameOf(S, id) + ' wandered off from the bench', () => commit(() => E.outEarly(S, id, true, now()))));
@@ -418,6 +423,8 @@
     $('notHereWrap').hidden = absent.length === 0;
     absent.forEach((p) => nh.appendChild(btn(p.name, 'quiet', () => { commit(() => E.arrive(S, p.id)); toast(p.name + ' is here and on the bench. Their rules are on.'); }, { title: p.name + ' arrived: put them on the bench', icon: 'plus' })));
     $('fieldCount').textContent = '(' + g.field.length + ' of ' + S.settings.fieldSize + ')';
+    const fs = $('fieldSizeSeg'); fs.innerHTML = '';
+    [4, 5, 6, 7].forEach((n) => fs.appendChild(btn(n + 'v' + n, 'sm', () => { commit(() => E.setFieldSize(S, n, now())); const p = S.game.pending; if (p) speak('Playing ' + n + ' v ' + n + '. ' + callText(p)); }, { pressed: n === S.settings.fieldSize, title: 'Play ' + n + ' against ' + n })));
     $('whoOnBtn').onclick = openWhoOn;
     $('benchCount').textContent = '(' + g.bench.length + ')';
     const aw = $('awayList'); aw.innerHTML = ''; $('awayWrap').hidden = g.away.length === 0;
