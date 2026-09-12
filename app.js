@@ -13,6 +13,31 @@
   const mins = (sec) => Math.round(sec / 60) + 'm';
   const SECS_OPTS = [{ label: 'Off', value: 0 }, { label: '30 s', value: 30 }, { label: '1 min', value: 60 }];
   const SWAP_HINT = 'Tap a kid on the field, then a kid on the bench, to swap by hand.';
+  // One icon family (Lucide-style outlines, 2px stroke). Always decorative beside a visible label.
+  const ICON_PATHS = {
+    menu: '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
+    undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5 5.5 5.5 0 0 1-5.5 5.5H11"/>',
+    pocket: '<rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/>',
+    roster: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    help: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
+    flag: '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/>',
+    swap: '<path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>',
+    play: '<path d="M6 3l14 9-14 9z"/>',
+    pause: '<rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/>',
+    speak: '<path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>',
+    skip: '<path d="M5 4l10 8-10 8z"/><path d="M19 5v14"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+    link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+    out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
+    in: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/>',
+    shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+    away: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m17 8 5 5"/><path d="m22 8-5 5"/>',
+    bench: '<path d="M3 10h18"/><path d="M5 10v9"/><path d="M19 10v9"/><path d="M3 15h18"/>',
+    trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  };
+  const icon = (name) => '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + ICON_PATHS[name] + '</svg>';
 
   let S = null;
   // Per-render view model: the move being shown (pending or preview) and what every row needs.
@@ -89,11 +114,12 @@
 
   // ---------- Small UI helpers ----------
   function toast(msg) {
-    let t = document.querySelector('.toast'); if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
+    let t = document.querySelector('.toast'); if (!t) { t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); t.setAttribute('aria-live', 'polite'); document.body.appendChild(t); }
     t.textContent = msg; t.hidden = false; clearTimeout(ui.toastTimer); ui.toastTimer = setTimeout(() => { t.hidden = true; }, 2200);
   }
   function btn(label, cls, onClick, opts) {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + (cls || ''); b.textContent = label;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + (cls || '');
+    if (opts && opts.icon) { b.innerHTML = icon(opts.icon) + '<span>' + esc(label) + '</span>'; } else b.textContent = label;
     if (onClick) b.onclick = onClick;
     if (opts) { if (opts.id) b.id = opts.id; if (opts.title) { b.title = opts.title; b.setAttribute('aria-label', opts.title); } if (opts.pressed != null) b.setAttribute('aria-pressed', String(opts.pressed)); }
     return b;
@@ -110,7 +136,7 @@
   }
   function holdBtn(label, cls, ms, fn, id) {
     const b = btn('', 'hold ' + (cls || ''), null, { id });
-    b.innerHTML = '<span class="fill"></span><span class="lbl">' + esc(label) + '</span>';
+    b.innerHTML = '<span class="fill"></span><span class="lbl">' + icon('check') + '<span>' + esc(label) + '</span></span>';
     return onHold(b, ms, fn, 'Press and hold');
   }
   function seg(el, options, current, onPick) {
@@ -140,7 +166,7 @@
     S.players.forEach((p) => {
       const row = document.createElement('div'); row.className = 'attend';
       row.appendChild(btn(p.name, 'here', () => { p.here = !p.here; save(); renderSetup(); }, { pressed: !!p.here }));
-      row.appendChild(btn('Remove', 'sm quiet', () => { if (!confirm('Remove ' + p.name + ' from the roster?')) return; const r = E.removePlayer(S, p.id); if (!r.ok) { toast(r.msg); return; } save(); renderSetup(); }, { title: 'Remove ' + p.name }));
+      row.appendChild(btn('Remove', 'sm quiet', () => { if (!confirm('Remove ' + p.name + ' from the roster?')) return; const r = E.removePlayer(S, p.id); if (!r.ok) { toast(r.msg); return; } save(); renderSetup(); toast(p.name + ' removed'); }, { title: 'Remove ' + p.name, icon: 'trash' }));
       list.appendChild(row);
     });
     const here = S.players.filter((p) => p.here).length;
@@ -164,7 +190,7 @@
     S.rules.forEach((r) => {
       const row = document.createElement('div'); row.className = 'rule';
       const txt = document.createElement('div'); txt.innerHTML = '<div class="kind">' + esc(ruleKind(r)) + '</div><div class="who">' + esc(r.ids.map((id) => E.nameOf(S, id)).join(r.type === 'keep' ? ', ' : ' + ')) + '</div>';
-      row.append(txt, btn('Remove', 'sm quiet', () => { S.rules = S.rules.filter((x) => x.id !== r.id); save(); renderSetup(); }));
+      row.append(txt, btn('Remove', 'sm quiet', () => { S.rules = S.rules.filter((x) => x.id !== r.id); save(); renderSetup(); toast('Rule removed'); }, { title: 'Remove rule: ' + ruleKind(r), icon: 'trash' }));
       rl.appendChild(row);
     });
     $('ruleForm').hidden = !ruleDraft.open; $('ruleAdd').hidden = ruleDraft.open;
@@ -184,7 +210,7 @@
       arm(); pickVoice();
       const r = E.startGame(S, now()); if (!r.ok) { alert(r.msg); return; }
       save(); render(); speak('Game on. First swap in ' + Math.round(S.settings.intervalSec / 60) + ' minutes.');
-    }, { id: 'startBtn' }));
+    }, { id: 'startBtn', icon: 'play' }));
   }
 
   // ---------- Game screen ----------
@@ -201,7 +227,7 @@
     : pr.on ? '<div class="pair"><span class="on">' + esc(E.nameOf(S, pr.on)) + '</span><span class="for">goes in</span></div>'
     : '<div class="pair"><span class="off">' + esc(E.nameOf(S, pr.off)) + '</span><span class="for">comes off</span></div>';
   const pairsHtml = (p) => '<div class="pairs">' + p.pairs.map(pairLine).join('') + '</div>' + (p.note ? '<p class="note">' + esc(p.note) + '</p>' : '');
-  const confirmSwap = () => commit(() => E.execute(S, now()));
+  const confirmSwap = () => { commit(() => E.execute(S, now())); toast('Swapped'); };
   const swapNow = () => commit(() => { if (!E.subNow(S, now())) toast('No legal swap right now'); });
   const togglePlay = () => commit(() => E.togglePlay(S, now()));
   const doneBtn = (id) => holdBtn('Done, they swapped', 'primary big', 600, confirmSwap, id);
@@ -215,30 +241,31 @@
     if (p) {
       card.className = 'card plan live';
       card.innerHTML = '<div class="eyebrow"><span>' + (p.type === 'rotation' ? 'Swap now' : p.type === 'fill' ? 'Send in' : 'Back in') + '</span><span class="num" id="subTimer"></span></div>' + pairsHtml(p);
-      row.append(doneBtn('goBtn'), btn('Say it', 'quiet', () => { arm(); speak(callText(p), true); }),
-        btn(p.type === 'rotation' ? 'Skip this one' : 'Never mind', 'quiet', () => commit(() => E.dismissPending(S, now()))));
+      row.append(doneBtn('goBtn'), btn('Say it', 'quiet', () => { arm(); speak(callText(p), true); }, { icon: 'speak' }),
+        btn(p.type === 'rotation' ? 'Skip this one' : 'Never mind', 'quiet', () => commit(() => E.dismissPending(S, now())), { icon: p.type === 'rotation' ? 'skip' : 'close' }));
     } else {
       card.className = 'card plan';
       card.innerHTML = '<div class="eyebrow"><span>Next swap</span><span class="num" id="subTimer"></span></div>' + (view.move ? pairsHtml(view.move) : '<p class="note">Nobody on the bench to swap in.</p>');
-      const b = btn('Swap now', '', swapNow); b.disabled = !view.move; row.appendChild(b);
+      const b = btn('Swap now', '', swapNow, { icon: 'swap' }); b.disabled = !view.move; row.appendChild(b);
     }
     card.appendChild(row);
   }
   function banner(cls, html) { const b = document.createElement('div'); b.className = 'banner ' + cls; b.innerHTML = html; return b; }
   function renderBanners() {
-    const g = S.game; const box = $('banners'); box.innerHTML = '';
+    const g = S.game; const box = $('banners'); box.innerHTML = ''; box.setAttribute('aria-live', 'polite');
     if (g.breakPending) {
       const half = S.settings.periods === 2;
       const b = banner('info', '<div class="title">End of ' + (half ? 'the half' : 'quarter ' + g.period) + '. Water break.</div><p>Do the swap below during the break, then start the next period.</p>');
-      b.appendChild(btn('Start ' + (half ? 'second half' : 'quarter ' + (g.period + 1)), 'primary big', () => { commit(() => E.nextPeriod(S, now())); speak((half ? 'Second half' : 'Quarter ' + g.period) + '. Go.'); }));
+      b.appendChild(btn('Start ' + (half ? 'second half' : 'quarter ' + (g.period + 1)), 'primary big', () => { commit(() => E.nextPeriod(S, now())); speak((half ? 'Second half' : 'Quarter ' + g.period) + '. Go.'); }, { icon: 'play' }));
       box.appendChild(b);
     }
-    g.away.filter((a) => a.status === 'left' && a.prompted).forEach((a) => {
+    const returning = g.pending && g.pending.type === 'return' ? g.pending.ons : [];
+    g.away.filter((a) => a.status === 'left' && a.prompted && !returning.includes(a.id)).forEach((a) => {
       const b = banner('check', '<div class="title">Check on ' + esc(E.nameOf(S, a.id)) + '</div><p>Off for <span data-off="' + a.id + '"></span>. Ready to go back in?</p>');
       const row = document.createElement('div'); row.className = 'row';
-      row.append(btn('Yes, in now', 'primary', () => returnNow(a.id)),
+      row.append(btn('Yes, in now', 'primary', () => returnNow(a.id), { icon: 'in' }),
         btn('Ask again in ' + (S.settings.checkBackSec / 60) + ' min', '', () => commit(() => E.checkLater(S, a.id, now()))),
-        btn('Done for today', 'quiet', () => commit(() => E.doneToday(S, a.id))));
+        btn('Done for today', 'quiet', () => commit(() => E.doneToday(S, a.id)), { icon: 'close' }));
       b.appendChild(row); box.appendChild(b);
     });
     const v = E.violations(S, g.field, []);
@@ -260,12 +287,12 @@
     info.innerHTML = '<div class="pname">' + esc(E.nameOf(S, id)) + chip + '</div><div class="pmeta num"></div>';
     ui.els.set(id, info.lastChild);
     const acts = document.createElement('div'); acts.className = 'pacts';
-    const act = (label, title, fn, pressed) => { const b = btn(label, '', (e) => { e.stopPropagation(); fn(); }, { title, pressed }); b.className = 'icon' + (pressed ? ' active' : ''); return b; };
+    const act = (label, ic, title, fn, pressed) => { const b = btn(label, '', (e) => { e.stopPropagation(); fn(); }, { title, pressed, icon: ic }); b.className = 'icon' + (pressed ? ' active' : ''); return b; };
     if (list === 'field') {
-      acts.append(act('GK', 'Goalie: keep on the field', () => commit(() => E.toggleLock(S, id, now())), gk),
-        act('Left', 'Came off on their own', () => { commit(() => E.outEarly(S, id, false, now())); const p = S.game.pending; speak(E.nameOf(S, id) + ' came off. ' + (p ? callText(p) : 'Nobody on the bench.')); }));
+      acts.append(act('Goalie', 'shield', 'Goalie: keep ' + E.nameOf(S, id) + ' on the field', () => commit(() => E.toggleLock(S, id, now())), gk),
+        act('Left', 'out', E.nameOf(S, id) + ' came off on their own', () => { commit(() => E.outEarly(S, id, false, now())); const p = S.game.pending; speak(E.nameOf(S, id) + ' came off. ' + (p ? callText(p) : 'Nobody on the bench.')); }));
     } else {
-      acts.append(act('In now', 'Put in right away', () => returnNow(id)), act('Away', 'Wandered off from the bench', () => commit(() => E.outEarly(S, id, true, now()))));
+      acts.append(act('In now', 'in', 'Put ' + E.nameOf(S, id) + ' in right away', () => returnNow(id)), act('Away', 'away', E.nameOf(S, id) + ' wandered off from the bench', () => commit(() => E.outEarly(S, id, true, now()))));
     }
     row.append(info, acts);
     row.onclick = () => {
@@ -278,11 +305,12 @@
   }
   function renderGame(view) {
     const g = S.game; ui.els.clear();
-    $('playBtn').textContent = g.running ? 'Pause' : 'Play'; $('playBtn').disabled = !!g.breakPending;
+    $('playBtn').innerHTML = icon(g.running ? 'pause' : 'play') + '<span>' + (g.running ? 'Pause' : 'Play') + '</span>'; $('playBtn').disabled = !!g.breakPending;
     renderBanners(); renderPlan(view);
     const fl = $('fieldList'); fl.innerHTML = ''; g.field.forEach((id) => fl.appendChild(playerRow(id, 'field', view)));
     const bl = $('benchList'); bl.innerHTML = '';
     g.bench.slice().sort((a, b) => (E.played(S, a) - E.played(S, b)) || (E.rest(S, b) - E.rest(S, a))).forEach((id) => bl.appendChild(playerRow(id, 'bench', view)));
+    if (!g.bench.length) { const e = document.createElement('p'); e.className = 'empty'; e.textContent = 'Everyone is on the field. Add a late kid below if one shows up.'; bl.appendChild(e); }
     $('fieldCount').textContent = '(' + g.field.length + ' of ' + S.settings.fieldSize + ')';
     $('benchCount').textContent = '(' + g.bench.length + ')';
     const aw = $('awayList'); aw.innerHTML = ''; $('awayWrap').hidden = g.away.length === 0;
@@ -292,13 +320,13 @@
       const status = a.status === 'done' ? '<span class="chip away">Done today</span>' : '<span class="chip away">Check <span data-check="' + a.id + '"></span></span>';
       info.innerHTML = '<div class="pname">' + esc(E.nameOf(S, a.id)) + status + '</div><div class="pmeta num">' + mins(E.played(S, a.id)) + ' played · off for <span data-off="' + a.id + '"></span></div>';
       const acts = document.createElement('div'); acts.className = 'pacts';
-      acts.append(btn('In now', 'sm primary', () => returnNow(a.id)), btn('Bench', 'sm', () => commit(() => E.toBench(S, a.id))));
+      acts.append(btn('In now', 'sm primary', () => returnNow(a.id), { icon: 'in' }), btn('Bench', 'sm', () => commit(() => E.toBench(S, a.id)), { icon: 'bench' }));
       row.append(info, acts); aw.appendChild(row);
     });
     const foot = $('footInner');
     if (g.pending) foot.appendChild(doneBtn());
-    else { foot.appendChild(btn('Swap now', 'big', swapNow)); const pp = btn(g.running ? 'Pause' : 'Play', 'primary big', togglePlay); pp.disabled = !!g.breakPending; foot.appendChild(pp); }
-    foot.appendChild(onHold(btn('⋯', 'menu quiet', null, { id: 'menuBtn', title: 'Menu (press and hold)' }), 500, openSheet, 'Hold to open the menu'));
+    else { foot.appendChild(btn('Swap now', 'big', swapNow, { icon: 'swap' })); const pp = btn(g.running ? 'Pause' : 'Play', 'primary big', togglePlay, { icon: g.running ? 'pause' : 'play' }); pp.disabled = !!g.breakPending; foot.appendChild(pp); }
+    foot.appendChild(onHold(btn('Menu', 'menu quiet', null, { id: 'menuBtn', title: 'Menu (press and hold)', icon: 'menu' }), 500, openSheet, 'Hold to open the menu'));
   }
   // Text that changes every second, written into elements the last redraw created.
   function renderTimers() {
@@ -321,14 +349,16 @@
   function openSheet() {
     ui.sheet = true; const ov = $('overlay'); ov.innerHTML = '';
     const sh = document.createElement('div'); sh.className = 'sheet'; const panel = document.createElement('div'); panel.className = 'panel';
-    const u = btn('Undo last move', 'quiet', () => { if (E.undo(S)) { save(); toast('Undone'); } closeSheet(); }); u.disabled = !(S.game && S.game.history.length);
+    panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', 'Game menu');
+    const u = btn('Undo last move', 'quiet', () => { if (E.undo(S)) { save(); toast('Undone'); } closeSheet(); }, { icon: 'undo' }); u.disabled = !(S.game && S.game.history.length);
     panel.append(u,
-      btn('Pocket screen', 'quiet', () => { closeSheet(); openPocket(); }),
-      btn('Roster & rules', 'quiet', () => { ui.sheet = false; commit(() => { S.screen = 'setup'; }); }),
-      btn('Help & setup', 'quiet', () => { ui.sheet = false; commit(() => { S.screen = 'help'; }); }),
-      btn('End game', 'danger', () => { if (!confirm('End the game and show minutes?')) return; ui.sheet = false; commit(() => E.endGame(S)); }),
-      btn('Close', 'primary', closeSheet));
+      btn('Pocket screen', 'quiet', () => { closeSheet(); openPocket(); }, { icon: 'pocket' }),
+      btn('Roster & rules', 'quiet', () => { ui.sheet = false; commit(() => { S.screen = 'setup'; }); }, { icon: 'roster' }),
+      btn('Help & setup', 'quiet', () => { ui.sheet = false; commit(() => { S.screen = 'help'; }); }, { icon: 'help' }),
+      btn('End game', 'danger', () => { if (!confirm('End the game and show minutes?')) return; ui.sheet = false; commit(() => E.endGame(S)); }, { icon: 'flag' }),
+      btn('Close', 'primary', closeSheet, { icon: 'close' }));
     sh.appendChild(panel); sh.addEventListener('click', (e) => { if (e.target === sh) closeSheet(); }); ov.appendChild(sh);
+    const first = panel.querySelector('button:not([disabled])'); if (first) first.focus();
   }
   function closeSheet() { ui.sheet = false; render(); }
   function openPocket() {
@@ -357,7 +387,7 @@
     $('sumLine').textContent = ids.length + ' kids played. Everyone got at least ' + mins(min) + '. Game clock ran ' + mins(g.total) + '.';
     $('sumTable').innerHTML = '<tr><th>Kid</th><th>Played</th><th style="width:40%"></th></tr>' + ids.map((id) => '<tr><td class="name">' + esc(E.nameOf(S, id)) + '</td><td class="num">' + mins(E.played(S, id)) + '</td><td><div class="bar-track"><div class="bar-fill" style="width:' + Math.round(100 * E.played(S, id) / max) + '%"></div></div></td></tr>').join('');
   }
-  function renderHelp() { $('verLine').textContent = 'Go In For ' + APP_VERSION; }
+  function renderHelp() { const off = 'serviceWorker' in navigator && navigator.serviceWorker.controller; $('verLine').textContent = 'Go In For ' + APP_VERSION + (off ? ' · saved on this phone, works offline' : ' · open once with a signal to save it for offline use'); }
 
   function render(view) {
     ['setup', 'game', 'summary', 'help'].forEach((id) => { $(id).hidden = S.screen !== id; });
@@ -425,6 +455,8 @@
     $('helpBack').onclick = () => commit(() => { S.screen = homeScreen(); });
     $('playBtn').onclick = togglePlay;
     $('newGameBtn').onclick = () => commit(() => E.newGame(S));
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (ui.sheet) closeSheet(); else if (ui.pocket) closePocket(); } });
+    [['addBtn', 'plus'], ['lateBtn', 'plus'], ['pasteBtn', 'link'], ['copyLink', 'link'], ['helpBtn', 'help'], ['helpBack', 'undo'], ['newGameBtn', 'play'], ['ruleAdd', 'plus'], ['testVoice', 'speak']].forEach(([id, ic]) => { const b = $(id); if (b) b.innerHTML = icon(ic) + '<span>' + b.textContent.trim().replace(/^\+\s*/, '') + '</span>'; });
     document.addEventListener('pointerdown', arm, { passive: true });
     document.addEventListener('keydown', arm);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { tick(); render(); } else save(); });

@@ -30,9 +30,12 @@
     <div class="card">
       <h2>Who's here</h2>
       <div id="attendList" class="list"></div>
-      <div class="row">
-        <input type="text" id="newName" placeholder="Add a kid" autocomplete="off" autocapitalize="words" style="flex:1">
-        <button class="btn" id="addBtn" type="button">Add</button>
+      <div class="field">
+        <label for="newName">Add a kid</label>
+        <div class="row">
+          <input type="text" id="newName" placeholder="First name" autocomplete="off" autocapitalize="words" style="flex:1">
+          <button class="btn" id="addBtn" type="button">Add</button>
+        </div>
       </div>
       <p id="calc" class="calc"></p>
     </div>
@@ -49,7 +52,7 @@
 
     <div class="card">
       <h2>Announcing</h2>
-      <div class="toggle"><span>Speak the calls out loud (works with AirPods)</span><button class="btn sm" id="tglAnnounce" type="button"></button></div>
+      <div class="toggle"><span>Speak the calls out loud (works with AirPods)</span><button class="btn sm" id="tglAnnounce" type="button" role="switch"></button></div>
       <div class="setting"><span class="lab">Heads-up before a swap</span><div class="seg" id="segWarn"></div></div>
       <div class="setting"><span class="lab">Repeat an unconfirmed call every</span><div class="seg" id="segRepeat"></div></div>
       <div class="row"><button class="btn quiet" id="testVoice" type="button">Test the voice</button></div>
@@ -81,9 +84,12 @@
         <button class="btn quiet" id="showLink" type="button">Show link</button>
       </div>
       <textarea class="link" id="linkBox" readonly hidden></textarea>
-      <div class="row">
-        <input type="text" id="pasteLink" placeholder="Paste a roster link or code" autocomplete="off" style="flex:1">
-        <button class="btn" id="pasteBtn" type="button">Load</button>
+      <div class="field">
+        <label for="pasteLink">Load a roster link or code</label>
+        <div class="row">
+          <input type="text" id="pasteLink" placeholder="Paste it here" autocomplete="off" style="flex:1">
+          <button class="btn" id="pasteBtn" type="button">Load</button>
+        </div>
       </div>
     </div>
 
@@ -111,9 +117,12 @@
     <div>
       <h2 style="margin-bottom:8px">Bench <span id="benchCount" class="num"></span></h2>
       <div id="benchList" class="list"></div>
-      <div class="row" style="margin-top:8px">
-        <input type="text" id="lateName" placeholder="Late kid" autocomplete="off" autocapitalize="words" style="flex:1">
-        <button class="btn sm" id="lateBtn" type="button">Add to bench</button>
+      <div class="field" style="margin-top:8px">
+        <label for="lateName">Late kid</label>
+        <div class="row">
+          <input type="text" id="lateName" placeholder="First name" autocomplete="off" autocapitalize="words" style="flex:1">
+          <button class="btn" id="lateBtn" type="button">Add to bench</button>
+        </div>
       </div>
     </div>
 

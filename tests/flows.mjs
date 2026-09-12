@@ -13,7 +13,7 @@ p.on('dialog', (d) => d.accept());
 const fails = []; const check = (cond, msg) => { if (!cond) fails.push(msg); console.log((cond ? 'ok   ' : 'FAIL ') + msg); };
 const names = (sel) => p.$eval(sel, (e) => [...e.querySelectorAll('.pname')].map((x) => x.firstChild.textContent));
 const st = () => p.evaluate(() => JSON.parse(JSON.stringify(window.__goinfor.state)));
-const hold = async (sel, ms) => { const el = await p.$(sel); const box = await el.boundingBox(); await p.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await p.mouse.down(); await p.waitForTimeout(ms); await p.mouse.up(); };
+const hold = async (sel, ms) => { const el = await p.$(sel); await el.scrollIntoViewIfNeeded(); const box = await el.boundingBox(); await p.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await p.mouse.down(); await p.waitForTimeout(ms); await p.mouse.up(); };
 const shot = (name, full) => p.screenshot({ path: OUT + '/' + name + '.png', fullPage: !!full });
 const rowName = (r) => r.$eval('.pname', (e) => e.firstChild.textContent);
 const noHScroll = async (page) => !(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth));
