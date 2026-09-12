@@ -6,6 +6,8 @@ No accounts, no server. Everything stays in the phone's browser.
 
 ## Use it
 
+Live at https://andersoneng-ux.github.io/Go-in-for/
+
 1. Open the app link in Safari on your iPhone.
 2. Share, then **Add to Home Screen**. Open it from the Home Screen from then on.
 3. Roster & rules: tap who is here, set the game format, add rules. Start the game.
