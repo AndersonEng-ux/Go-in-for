@@ -4,7 +4,7 @@
   const E = window.Engine;
   const KEY = 'goinfor_v2';
   const OLD_KEY = 'goinfor_v1';
-  const APP_VERSION = '1.7.0';
+  const APP_VERSION = '1.8.0';
   const SAVE_EVERY_MS = 5000;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -268,7 +268,7 @@
       if (resume) { commit(() => { S.screen = 'game'; }); return; }
       arm(); pickVoice();
       const r = E.startGame(S, now()); if (!r.ok) { alert(r.msg); return; }
-      save(); render(); speak('Game on. First swap in ' + Math.round(S.settings.intervalSec / 60) + ' minutes.');
+      save(); render(); speak('Starters are set. Tap Kick off at the whistle.');
     }, { id: 'startBtn', icon: 'play' }));
   }
 
@@ -302,7 +302,11 @@
   const pairsHtml = (p) => '<div class="pairs">' + p.pairs.map(pairLine).join('') + '</div>' + (p.note ? '<p class="note">' + esc(p.note) + '</p>' : '');
   const confirmSwap = () => { commit(() => E.execute(S, now())); toast('Swapped.', { label: 'Undo', fn: () => { if (E.undo(S)) { save(); render(); toast('Undone'); } } }); };
   const swapNow = () => commit(() => { if (!E.fixNow(S, now()) && !E.subNow(S, now())) toast('No legal swap right now'); });
-  const togglePlay = () => commit(() => E.togglePlay(S, now()));
+  const togglePlay = () => {
+    const first = !S.game.started; commit(() => E.togglePlay(S, now()));
+    if (first && S.game.started) speak('Game on. First swap in ' + Math.round(S.settings.intervalSec / 60) + ' minutes.');
+  };
+  const clockLbl = (g) => (!g.started ? ' · kickoff' : g.running ? '' : ' · paused');
   const doneBtn = (id) => btn('Done', 'primary big', confirmSwap, { id, icon: 'check' });
   function returnNow(id) {
     const r = E.returnNow(S, id, now()); save(); render();
@@ -319,14 +323,15 @@
         btn(p.type === 'rotation' ? 'Skip this one' : p.type === 'fix' || p.type === 'fill' ? 'Leave it' : 'Never mind', 'sm quiet', () => commit(() => E.dismissPending(S, now())), { icon: p.type === 'rotation' ? 'skip' : 'close' }));
     } else {
       card.className = 'card plan';
-      card.innerHTML = '<div class="eyebrow"><span>Next swap</span><span class="num" id="subTimer"></span></div>' + (view.move ? pairsHtml(view.move) : '<p class="note">Nobody on the bench to swap in.</p>');
-      const b = btn('Swap now', 'sm', swapNow, { icon: 'swap' }); b.disabled = !view.move; row.appendChild(b);
+      card.innerHTML = '<div class="eyebrow"><span>' + (g.started ? 'Next swap' : 'First swap') + '</span><span class="num" id="subTimer"></span></div>' + (view.move ? pairsHtml(view.move) : '<p class="note">Nobody on the bench to swap in.</p>');
+      if (g.started) { const b = btn('Swap now', 'sm', swapNow, { icon: 'swap' }); b.disabled = !view.move; row.appendChild(b); }
     }
-    card.appendChild(row);
+    if (row.childElementCount) card.appendChild(row);
   }
   function banner(cls, html) { const b = document.createElement('div'); b.className = 'banner ' + cls; b.innerHTML = html; return b; }
   function renderBanners() {
     const g = S.game; const box = $('banners'); box.innerHTML = ''; box.setAttribute('aria-live', 'polite');
+    if (!g.started) box.appendChild(banner('info', '<div class="title">Starting lineup</div><p>The ' + g.field.length + ' on the field start. Change them here, or tap <b>Starters</b> to pick the lineup. Tap <b>Kick off</b> at the whistle.</p>'));
     if (g.breakPending) {
       const half = S.settings.periods === 2;
       const b = banner('info', '<div class="title">End of ' + (half ? 'the half' : 'quarter ' + g.period) + '. Water break.</div><p>Do the swap below during the break, then start the next period.</p>');
@@ -342,10 +347,11 @@
         btn('Done for today', 'quiet', () => commit(() => E.doneToday(S, a.id)), { icon: 'close' }));
       b.appendChild(row); box.appendChild(b);
     });
-    const over = g.field.length - S.settings.fieldSize;
-    if (over > 0) box.appendChild(banner('warn', '<div class="title">' + g.field.length + ' on the field for ' + S.settings.fieldSize + 'v' + S.settings.fieldSize + '</div><p>Drag ' + (over === 1 ? 'one kid' : over + ' kids') + ' to the bench, or use the swap above.</p>'));
+    const over = g.field.length - S.settings.fieldSize, short = -over;
+    if (over > 0) box.appendChild(banner('warn', '<div class="title">' + g.field.length + ' on the field for ' + S.settings.fieldSize + 'v' + S.settings.fieldSize + '</div><p>Drag ' + (over === 1 ? 'one kid' : over + ' kids') + ' to the bench' + (g.started ? ', or use the swap above.' : '.') + '</p>'));
+    if (short > 0 && !g.started && g.bench.length) box.appendChild(banner('warn', '<div class="title">' + g.field.length + ' on the field for ' + S.settings.fieldSize + 'v' + S.settings.fieldSize + '</div><p>Drag ' + (short === 1 ? 'one more kid' : short + ' more kids') + ' to the field before kickoff.</p>'));
     const v = E.violations(S, g.field, []);
-    if (v.length && !(g.pending && g.pending.type === 'fix')) box.appendChild(banner('warn', '<div class="title">Heads up</div><p>' + esc(v.join('. ')) + '. ' + (E.fixPlan(S) ? 'Tap Swap now for the fix.' : 'No legal fix with who is here. ' + SWAP_HINT) + '</p>'));
+    if (v.length && !(g.pending && g.pending.type === 'fix')) box.appendChild(banner('warn', '<div class="title">Heads up</div><p>' + esc(v.join('. ')) + '. ' + (!g.started ? 'Change the starters, or kick off and the app will call the fix.' : E.fixPlan(S) ? 'Tap Swap now for the fix.' : 'No legal fix with who is here. ' + SWAP_HINT) + '</p>'));
     if (ui.sel) box.appendChild(banner('info', '<p>' + esc(E.nameOf(S, ui.sel.id)) + ' picked. Tap the kid who swaps with ' + esc(E.nameOf(S, ui.sel.id)) + ', or tap ' + esc(E.nameOf(S, ui.sel.id)) + ' again to cancel.</p>'));
   }
   // One kid as a compact tile. Tap it to open its actions; tap again to close.
@@ -477,9 +483,9 @@
     $('benchCount').textContent = String(g.bench.length);
     // Control row: one big round action in the middle (Done when a call is up, else Pause/Play), labeled round buttons either side.
     const foot = $('footInner'); foot.className = 'ctrl';
-    foot.appendChild(roundBtn("Who's on", 'roster', 'side', openWhoOn, { id: 'whoOnBtn' }));
+    foot.appendChild(roundBtn(g.started ? "Who's on" : 'Starters', 'roster', 'side', openWhoOn, { id: 'whoOnBtn' }));
     if (g.pending) foot.appendChild(roundBtn('Done', 'check', 'main', confirmSwap, { id: 'goBtn' }));
-    else { const pp = roundBtn(g.running ? 'Pause' : 'Play', g.running ? 'pause' : 'play', 'main', togglePlay, { id: 'playBtn' }); pp.disabled = !!g.breakPending; foot.appendChild(pp); }
+    else { const pp = roundBtn(!g.started ? 'Kick off' : g.running ? 'Pause' : 'Play', g.running ? 'pause' : 'play', 'main', togglePlay, { id: 'playBtn' }); pp.disabled = !!g.breakPending; foot.appendChild(pp); }
     foot.appendChild(onHold(roundBtn('Menu', 'menu', 'side', null, { id: 'menuBtn', title: 'Menu (press and hold)' }), 500, openSheet, 'Hold to open the menu'));
   }
   // Strava-style round control: a circle with the icon, the label underneath.
@@ -497,7 +503,7 @@
     fitFoot();
     const t = now();
     $('clock').textContent = mmss(g.t); // counts up, like the match clock
-    $('periodLbl').textContent = (S.settings.periods === 2 ? 'Half ' : 'Quarter ') + g.period + ' of ' + S.settings.periods + (g.running ? '' : ' · paused');
+    $('periodLbl').textContent = (S.settings.periods === 2 ? 'Half ' : 'Quarter ') + g.period + ' of ' + S.settings.periods + clockLbl(g);
     const top = $('subTimerTop'); top.textContent = g.breakPending ? 'break' : g.pending ? 'now' : mmss(g.subT); top.classList.toggle('due', !!g.pending);
     const st = $('subTimer'); if (st) st.textContent = g.pending ? '' : 'in ' + mmss(g.subT);
     ui.els.forEach((m, id) => {
@@ -544,8 +550,10 @@
     const g = S.game; ui.sheet = true; ui.sel = null; const ov = $('overlay'); ov.innerHTML = '';
     const picked = new Set(g.field);
     const sh = document.createElement('div'); sh.className = 'sheet'; const panel = document.createElement('div'); panel.className = 'panel';
-    panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', 'Who is on the field right now');
-    panel.innerHTML = '<h3>Who is on right now?</h3><p class="muted">Tap the kids you can see on the field. Everyone else goes to the bench.</p><div class="pick" id="whoPick"></div><p class="calc" id="whoCount" aria-live="polite"></p>';
+    const pre = !g.started;
+    panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', pre ? 'Who starts' : 'Who is on the field right now');
+    panel.innerHTML = (pre ? '<h3>Who starts?</h3><p class="muted">Tap the kids who start. Everyone else starts on the bench.</p>' : '<h3>Who is on right now?</h3><p class="muted">Tap the kids you can see on the field. Everyone else goes to the bench.</p>')
+      + '<div class="pick" id="whoPick"></div><p class="calc" id="whoCount" aria-live="polite"></p>';
     const kids = [...g.field, ...g.bench, ...g.away.map((a) => a.id)];
     const pick = panel.querySelector('#whoPick'); const count = panel.querySelector('#whoCount');
     const draw = () => {
@@ -555,7 +563,7 @@
       ok.disabled = picked.size === 0;
     };
     const row = document.createElement('div'); row.className = 'row';
-    const ok = btn("That's who's on", 'primary big', () => { const ids = kids.filter((id) => picked.has(id)); ui.sheet = false; commit(() => E.setLineup(S, ids, now())); toast('Lineup set. ' + ids.length + ' on.'); }, { id: 'whoOk', icon: 'check' });
+    const ok = btn(pre ? 'These kids start' : "That's who's on", 'primary big', () => { const ids = kids.filter((id) => picked.has(id)); ui.sheet = false; commit(() => E.setLineup(S, ids, now())); toast((pre ? 'Starters set. ' : 'Lineup set. ') + ids.length + ' on.'); }, { id: 'whoOk', icon: 'check' });
     row.append(btn('Cancel', 'quiet', closeSheet, { icon: 'close' }), ok);
     panel.appendChild(row); draw();
     sh.appendChild(panel); sh.addEventListener('click', (e) => { if (e.target === sh) closeSheet(); }); ov.appendChild(sh);
@@ -577,7 +585,7 @@
   function renderPocket() {
     const g = S.game; if (!g || !ui.pocket || !$('pclock')) return;
     const C = Number($('pocket').dataset.c); const p = g.pending || (ui.view && ui.view.move);
-    $('ptop').textContent = (S.settings.periods === 2 ? 'H' : 'Q') + g.period + ' · ' + mmss(g.t) + (g.running ? '' : ' · paused');
+    $('ptop').textContent = (S.settings.periods === 2 ? 'H' : 'Q') + g.period + ' · ' + mmss(g.t) + clockLbl(g);
     const due = !!g.pending;
     $('plbl').textContent = due ? ({ rotation: 'Swap now', fill: 'Send in', fix: 'Fix it', return: 'Back in' }[g.pending.type] || 'Swap now') : g.breakPending ? 'Water break' : 'Next swap';
     $('pclock').textContent = due ? 'NOW' : mmss(g.subT);

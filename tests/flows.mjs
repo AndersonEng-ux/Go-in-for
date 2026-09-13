@@ -62,10 +62,32 @@ check((await p.$eval('#ruleList', (e) => e.textContent)).includes('At most 2 on'
 await p.click('#startBtn'); await p.waitForTimeout(400);
 s = await st();
 check(s.screen === 'game', 'game screen after start');
+check(s.game.started === false && s.game.running === false, 'the game waits at kickoff with the clock stopped');
+check((await p.$eval('#periodLbl', (e) => e.textContent)).includes('kickoff'), 'header says kickoff');
+check((await p.$eval('#playBtn', (e) => e.textContent)).includes('Kick off'), 'main button says Kick off');
 check(s.game.field.length === 6 && s.game.bench.length === 5, 'six on, five on the bench');
 const field0 = await names('#fieldList');
 check(!(field0.includes('Knox') && field0.includes('Lydon')), 'Knox and Lydon not both starting');
 check((await p.$eval('#planCard', (e) => e.innerText)).includes('IN FOR'), 'next swap preview names a pair');
+await shot('02-kickoff');
+// Change the starters before the whistle: pick the whole lineup from the banner
+check((await p.$eval('#whoOnBtn', (e) => e.textContent)).includes('Starters'), 'side button says Starters before kickoff');
+await p.click('#whoOnBtn'); await p.waitForTimeout(200);
+check((await p.$eval('.sheet .panel h3', (e) => e.textContent)) === 'Who starts?', 'starters picker opens from the Starters button');
+const benchKid = (await names('#benchList'))[0]; const fieldKid = field0[0];
+await p.click('#whoPick .btn:has-text("' + fieldKid + '")'); await p.click('#whoPick .btn:has-text("' + benchKid + '")'); await p.waitForTimeout(100);
+await p.click('#whoOk'); await p.waitForTimeout(300); s = await st();
+const field1 = await names('#fieldList');
+check(field1.includes(benchKid) && !field1.includes(fieldKid) && field1.length === 6, 'starters changed: ' + benchKid + ' in for ' + fieldKid);
+check(s.game.started === false && Object.values(s.game.played).every((v) => v === 0), 'still at kickoff, nobody has minutes');
+await shot('02b-starters-changed');
+check(!s.game.pending, 'no calls before kickoff');
+await p.click('#playBtn'); await p.waitForTimeout(300); s = await st();
+check(s.game.started === true && s.game.running === true, 'Kick off starts the clock');
+check((await p.$eval('#banners', (e) => e.textContent)).indexOf('Starting lineup') < 0 && (await p.$eval('#whoOnBtn', (e) => e.textContent)).includes("Who's on"), 'starters banner gone after kickoff, side button back to Who\'s on');
+// A lineup that breaks a rule gets its fix called at the whistle; otherwise the main button is Pause.
+if (s.game.pending) { check(s.game.pending.type === 'fix' && await p.$('#goBtn') !== null, 'kickoff calls the fix for the hand-picked lineup'); await p.click('#goBtn'); await p.waitForTimeout(250); s = await st(); }
+else check((await p.$eval('#playBtn', (e) => e.textContent)).includes('Pause'), 'main button becomes Pause');
 await shot('02-game-start');
 
 // Fast-forward the clock by moving lastTick back, then tick.
@@ -212,7 +234,7 @@ check(s.screen === 'setup' && !!s.carry, 'next game keeps the carry-over');
 check(await p.$eval('#carryCard', (e) => !e.hidden && e.innerText.includes('Start with:')), 'setup shows who starts next');
 check((await p.$eval('#startBtn', (e) => e.textContent)).includes('game 2'), 'start button says game 2');
 await shot('12-carry-setup', true);
-await p.click('#startBtn'); await p.waitForTimeout(400); s = await st();
+await p.click('#startBtn'); await p.waitForTimeout(400); await p.click('#playBtn'); await p.waitForTimeout(200); s = await st();
 check(s.game.games === 2 && s.game.field.includes(leastPlayed) && s.game.field.join() !== endField.join(), 'game 2 starts with the kid who played least (' + (await names('#fieldList')).join(', ') + ')');
 check(Object.values(s.game.played).some((v) => v > 0), 'minutes carried into game 2');
 await hold('#menuBtn', 700); await p.waitForTimeout(250); await p.click('.sheet button:has-text("End game")'); await p.waitForTimeout(300); s = await st();
@@ -227,7 +249,7 @@ await p.click('#helpBack');
 
 // Dark theme screenshot
 const ctxD = await b.newContext({ ...iphone, colorScheme: 'dark' }); const pd = await ctxD.newPage(); pd.on('dialog', (d) => d.accept());
-await pd.goto(BASE + '#roster=' + enc, { waitUntil: 'load' }); await pd.waitForTimeout(400); await pd.click('#startBtn'); await pd.waitForTimeout(400);
+await pd.goto(BASE + '#roster=' + enc, { waitUntil: 'load' }); await pd.waitForTimeout(400); await pd.click('#startBtn'); await pd.waitForTimeout(400); await pd.click('#playBtn'); await pd.waitForTimeout(300);
 await pd.screenshot({ path: OUT + '/11-game-dark.png' });
 check(await noHScroll(pd), 'no horizontal scroll on game (dark)');
 await ctxD.close();

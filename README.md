@@ -10,7 +10,7 @@ Live at https://andersoneng-ux.github.io/Go-in-for/
 
 1. Open the app link in Safari on your iPhone.
 2. Share, then **Add to Home Screen**. Open it from the Home Screen from then on.
-3. Roster & rules: tap who is here, set the game format, add rules. Start the game.
+3. Roster & rules: tap who is here, set the game format, add rules. Start the game, check or change the starters, then tap Kick off at the whistle.
 
 Load a saved roster on any phone with a **roster link** (Roster link card on the setup screen). The link carries the roster, rules, and settings and never touches a server.
 

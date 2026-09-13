@@ -75,7 +75,7 @@
         ['played', 'onSince', 'offSince'].forEach((k) => { g[k] = g[k] && typeof g[k] === 'object' ? g[k] : {}; });
         ['t', 'total', 'subT', 'period'].forEach((k) => { g[k] = Number.isFinite(Number(g[k])) ? Number(g[k]) : (k === 'period' ? 1 : 0); });
         g.games = Math.max(1, Math.round(Number(g.games)) || 1); g.playedBefore = secMap(g.playedBefore);
-        g.running = false; g.lastTick = Date.now();
+        g.started = g.started !== false; g.running = false; g.lastTick = Date.now();
       }
     }
     const c = S.carry;
@@ -280,7 +280,8 @@
       const stale = p.offs.some((id) => !g.field.includes(id) || g.locked.includes(id)) || p.ons.some((id) => !from.includes(id));
       if (stale) g.pending = null;
     }
-    if (!g.pending) {
+    // Before kickoff the coach is building the lineup: no calls until the whistle (kickoff settles).
+    if (!g.pending && g.started) {
       const f = g.fixMuted === fieldKey(S) ? null : fixPlan(S);
       if (f) setPending(S, f.type, '', f, now);
       else if (g.subT <= 0 && !g.breakPending) offerRotation(S, '', now);
@@ -303,7 +304,8 @@
     const f = S.settings.fieldSize;
     if (here.length < f) return { ok: false, msg: 'You need at least ' + f + ' kids here for ' + f + 'v' + f + '.' };
     if (carry) here = here.slice().sort((a, b) => carryScore(carry, b) - carryScore(carry, a));
-    S.game = { running: true, t: 0, total: 0, period: 1, subT: S.settings.intervalSec, field: [], bench: here, away: [], locked: [],
+    // The game waits at kickoff: the clock is stopped until the coach taps Play, so the starters can be changed first.
+    S.game = { started: false, running: false, t: 0, total: 0, period: 1, subT: S.settings.intervalSec, field: [], bench: here, away: [], locked: [],
       played: {}, onSince: {}, offSince: {}, pending: null, history: [], breakPending: false, lastTick: now, ended: false, warned: false,
       games: carry ? carry.games + 1 : 1, playedBefore: carry ? Object.assign({}, carry.played) : {} };
     const g = S.game;
@@ -460,7 +462,9 @@
     const r = { id: uid(S, 'r'), type, ids: ids.slice() }; if (type === 'keep') r.min = m; if (type === 'limit') r.max = m;
     S.rules.push(r); return r;
   }
-  function togglePlay(S, now) { const g = S.game; if (g.breakPending || g.ended) return; g.running = !g.running; g.lastTick = now; }
+  // First whistle: the lineup on the field right now is the starting lineup and the clock begins.
+  function kickoff(S, now) { const g = S.game; if (g.started || g.ended) return false; g.started = true; g.running = true; g.lastTick = now; g.history = []; settle(S, now); return true; }
+  function togglePlay(S, now) { const g = S.game; if (g.breakPending || g.ended) return; if (!g.started) { kickoff(S, now); return; } g.running = !g.running; g.lastTick = now; }
   function endPeriod(S, now) {
     const g = S.game; g.running = false;
     if (g.period >= S.settings.periods) { finishGame(S, now); return 'gameOver'; }
@@ -508,6 +512,7 @@
   function simulate(S, rules) {
     const C = { v: S.v, seq: S.seq, screen: 'setup', players: S.players.map((p) => ({ id: p.id, name: p.name, here: p.here })), rules: (rules || S.rules).map((r) => Object.assign({}, r, { ids: r.ids.slice() })), settings: Object.assign({}, S.settings, { warnSec: 0, repeatSec: 0 }), game: null, carry: null };
     let T = 0; if (!startGame(C, T).ok) return null;
+    kickoff(C, T);
     const g = C.game; let guard = 0;
     while (!g.ended && guard++ < 500) { T += 30000; tick(C, T); if (g.pending) execute(C, T); if (g.breakPending) nextPeriod(C, T); }
     const out = {}; [...activeIds(C)].forEach((id) => { out[id] = played(C, id); });
@@ -569,6 +574,6 @@
 
   return { STATE_VERSION, LIMITS, MAX_PLAYERS, MAX_RULES, defaults, migrate, findByName, nameOf, activeIds, violations, played, stint, rest, isFresh, freshMatters,
     pinnedByRule, plan, rotationPlan, planSpeech, undo, startGame, execute, dismissPending, subNow, fixNow, toggleLock, outEarly, returnNow, toBench,
-    doneToday, checkLater, manualSwap, movePlayer, setLineup, offNow, setFieldSize, fixPlan, usableCarry, carryPreview, addPlayer, arrive, addLate, removePlayer, addRule, togglePlay, nextPeriod, endGame, newGame, tick, markSpoken,
+    doneToday, checkLater, manualSwap, movePlayer, setLineup, offNow, setFieldSize, fixPlan, usableCarry, carryPreview, addPlayer, arrive, addLate, removePlayer, addRule, kickoff, togglePlay, nextPeriod, endGame, newGame, tick, markSpoken,
     importRoster, encodeRoster, decodeRoster, simulate, fairness };
 });
